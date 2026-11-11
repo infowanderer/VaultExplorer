@@ -1,3 +1,4 @@
+import 'package:vaultexplorer/features/photo_sorter/photo_sorter_screen.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
@@ -6203,6 +6204,45 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
         container: widget.container,
         pathStack: appBarPathStack,
         onJumpTo: _jumpTo,
+        onSortPhotos:
+            !widget.container.isLocalStorage ||
+                _archiveContext != null ||
+                appBarSearchActive
+            ? null
+            : () {
+                final photos = filteredItems
+                    .where(
+                      (e) =>
+                          !e.isDir &&
+                          !e.isPlaceholder &&
+                          const {
+                            'jpg',
+                            'jpeg',
+                            'png',
+                            'webp',
+                            'heic',
+                            'heif',
+                            'avif',
+                            'bmp',
+                          }.contains(e.extension),
+                    )
+                    .map((e) => _joinPath(e.name))
+                    .toList();
+                final io = ref.read(vaultFileIoApiProvider);
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => PhotoSorterScreen(
+                      photos: photos,
+                      folderName: widget.container.displayName,
+                      loadPreview: (path, size) => io.getImageThumbnail(
+                        widget.container,
+                        path,
+                        targetSize: size,
+                      ),
+                    ),
+                  ),
+                );
+              },
         forwardStack: appBarForwardStack,
         onForwardTo: _navigateForward,
         filteredItems: filteredItems,
