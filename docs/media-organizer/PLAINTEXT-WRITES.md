@@ -122,7 +122,7 @@ already been rebuilt with full functionality.
   **15 tests also pass through the real Android Gradle task**
   `:app:testDebugUnitTest --tests 'com.aeidolon.vaultexplorer.privacy.*'`
   (0 failures/errors/skips). These remain JVM tests, not device instrumentation.
-- 8 structural privacy guards pass (`python3 tool/privacy/no_staging_test.py`):
+- 10 structural privacy/identity guards pass (`python3 tool/privacy/no_staging_test.py`):
   no temp/cache/extract fallback in document provider, no cache staging in export
   handlers, no filesystem dependency in the stream helper, and no plaintext writer
   in the four migrated metadata services. These checks are not
@@ -134,7 +134,7 @@ already been rebuilt with full functionality.
   `fv_cryfs_vault.cpp` passes host C++20 syntax checking. With the actual NDK
   28.2.13676358 compiler, both the helper test source and CryFS translation unit
   also pass ARM64/API-26 syntax checking. This does not execute them on Android.
-- Final full Flutter run: **3,811 tests pass**. The initial run found one stale
+- Final full Flutter run: **3,815 tests pass**, plus 4 preview-identity tests. The initial run found one stale
   toolbar round-trip test, also reproduced against untouched baseline `fbabd06`.
   Its old top-bar expectation contradicted the current default and adjacent tests
   placing that button in More. The corrected test checks that both placements
@@ -145,11 +145,13 @@ already been rebuilt with full functionality.
 - 14 metadata-store contract tests and 4 external-storage repository tests pass,
   plus catalog-corruption, migration, bookmark, recent-file and dashboard regression
   coverage. These use fake native storage; they do not test Keystore cryptography.
-- Android `:app:compileDebugKotlin` passes with the real SDK, AGP, Flutter
-  dependencies and all app Kotlin sources. The same task compiled the app's
-  Flutter/Dart Android code. This is not a full native link or APK packaging check.
-  Bitmap codec tests, document-provider integration tests and Tab S8 Ultra I/O
-  tracing have not run. No APK has been produced.
+- Full ARM64 release native linking, Flutter AOT assembly, Kotlin/Java compilation,
+  R8, release lint and APK packaging pass. The signed isolated preview passes
+  packaged identity, provider, ABI, no-network, signature and ZIP-alignment checks.
+  Seventeen Android Gradle privacy/provider tests pass; five APK-validator regression
+  tests pass. See [TABLET-PREVIEW.md](TABLET-PREVIEW.md) for exact artifact checks.
+  Bitmap codec/device-provider integration tests and Tab S8 Ultra I/O tracing have
+  not run. This is a test preview, not a completed secure-organizer release.
   Official SDK platform 37.0, build-tools 37.0.0 and NDK 28.2.13676358 were
   retrieved and checksum-verified during toolchain provisioning. Their presence
   does not establish a successful Android integration build. Original SDK pins

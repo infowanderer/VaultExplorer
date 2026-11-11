@@ -77,7 +77,7 @@ hardening. The upstream release APKs linked below do **not** contain these chang
 Scratch-dependent archive, recording and edit-export workflows are intentionally
 blocked. Review [the privacy report](docs/media-organizer/PLAINTEXT-WRITES.md) for
 metadata migration, limitations and checks before using a development build.
-Full native linking, APK packaging and tablet testing are still required.
+An isolated, test-signed ARM64 release preview now builds; see [the tablet preview notes](docs/media-organizer/TABLET-PREVIEW.md). Real tablet testing is still required.
 
 ## Security & privacy
 

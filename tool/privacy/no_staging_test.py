@@ -69,6 +69,9 @@ class NoStagingTests(unittest.TestCase):
         android = '{http://schemas.android.com/apk/res/android}'
         for provider in manifest.findall('./application/provider'):
             self.assertTrue(provider.get(android + 'authorities').startswith('${applicationId}.'))
+        usb = (NATIVE / 'handlers/UsbContainerHandlers.kt').read_text()
+        self.assertNotIn('${activity.packageName}.UsbAttachAlias', usb)
+        self.assertIn('"com.aeidolon.vaultexplorer.UsbAttachAlias"', usb)
         for path in NATIVE.rglob('*.kt'):
             source = path.read_text()
             for authority in ('documents', 'shareprovider', 'stream'):

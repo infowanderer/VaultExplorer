@@ -165,5 +165,8 @@ failures/errors/skips. The full Flutter suite passes all 3,811 tests. A dedicate
 CI job now checks the reviewed plaintext staging boundaries and host RAM-scratch
 behavior; no remote CI execution result is claimed.
 
-These checks do not package or install an APK, complete the native link, or test
-on a tablet. Device tests remain outstanding.
+A later isolated preview build completed native linking, Flutter AOT compilation,
+R8/lint and release APK packaging. It passes seventeen Android privacy/provider
+unit tests and the signed APK packaging checks. See [TABLET-PREVIEW.md](TABLET-PREVIEW.md)
+for download scope, build flag, private signing backup and device checklist.
+Nothing has been installed or tested on a tablet here.

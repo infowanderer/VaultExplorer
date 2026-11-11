@@ -50,7 +50,7 @@ class UsbContainerHandlers(
     private val attachAlias by lazy {
         ComponentName(
             activity.packageName,
-            "${activity.packageName}.UsbAttachAlias",
+            "com.aeidolon.vaultexplorer.UsbAttachAlias",
         )
     }
 

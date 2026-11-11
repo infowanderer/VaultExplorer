@@ -27,6 +27,9 @@ jobs:
       - name: Check plaintext staging boundaries
         run: python3 tool/privacy/no_staging_test.py
 
+      - name: Check APK validation parser and rejection cases
+        run: python3 -m unittest discover -s tool/privacy -p 'test_*.py'
+
       - name: Compile and run RAM scratch regression checks
         run: |
           g++ -std=c++20 -Wall -Wextra -Werror tool/privacy/ram_scratch_test.cpp -o "$RUNNER_TEMP/ram-scratch-test"
