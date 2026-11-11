@@ -1,5 +1,7 @@
 package com.aeidolon.vaultexplorer.handlers
 
+import com.aeidolon.vaultexplorer.ProviderAuthorities
+
 import android.app.PendingIntent
 import android.content.Intent
 import android.content.ComponentName
@@ -286,7 +288,7 @@ class UsbContainerHandlers(
                         if (args.docProvider || hasFolderMounts) {
                             activity.contentResolver.notifyChange(
                                 DocumentsContract.buildRootsUri(
-                                    "com.aeidolon.vaultexplorer.documents"), null)
+                                    ProviderAuthorities.DOCUMENTS), null)
                         }
                         val fmt = ContainerEngine.format(targetVolId).wireName
                         result.success(mapOf(
@@ -575,7 +577,7 @@ class UsbContainerHandlers(
             activity.runOnUiThread {
                 activity.contentResolver.notifyChange(
                     DocumentsContract.buildRootsUri(
-                        "com.aeidolon.vaultexplorer.documents"), null)
+                        ProviderAuthorities.DOCUMENTS), null)
                 activity.methodChannel?.invokeMethod(
                     "onUsbContainerDetached", mapOf("volId" to volId))
             }

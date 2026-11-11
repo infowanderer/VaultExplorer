@@ -63,6 +63,26 @@ class NoStagingTests(unittest.TestCase):
             self.assertNotIn('writeAsString(', source)
             self.assertNotIn('writeAsBytes(', source)
 
+    def test_providers_follow_the_application_package(self):
+        import xml.etree.ElementTree as ET
+        manifest = ET.parse(ROOT / 'android/app/src/main/AndroidManifest.xml').getroot()
+        android = '{http://schemas.android.com/apk/res/android}'
+        for provider in manifest.findall('./application/provider'):
+            self.assertTrue(provider.get(android + 'authorities').startswith('${applicationId}.'))
+        for path in NATIVE.rglob('*.kt'):
+            source = path.read_text()
+            for authority in ('documents', 'shareprovider', 'stream'):
+                self.assertNotIn('"com.aeidolon.vaultexplorer.' + authority + '"', source)
+
+    def test_main_manifest_removes_network_permissions(self):
+        import xml.etree.ElementTree as ET
+        manifest = ET.parse(ROOT / 'android/app/src/main/AndroidManifest.xml').getroot()
+        android = '{http://schemas.android.com/apk/res/android}'
+        tools = '{http://schemas.android.com/tools}'
+        permissions = {p.get(android + 'name'): p for p in manifest.findall('uses-permission')}
+        for name in ('android.permission.INTERNET', 'android.permission.ACCESS_NETWORK_STATE'):
+            self.assertEqual('remove', permissions[name].get(tools + 'node'))
+
     def test_split_volume_mirror_refuses_external_staging(self):
         source = (NATIVE / 'LocalSplitFuseCallback.kt').read_text()
         self.assertNotIn('dir = File(context.cacheDir, "split_rw_mirror_', source)

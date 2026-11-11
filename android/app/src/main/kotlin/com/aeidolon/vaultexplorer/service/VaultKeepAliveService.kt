@@ -1,5 +1,7 @@
 package com.aeidolon.vaultexplorer.service
 
+import com.aeidolon.vaultexplorer.ProviderAuthorities
+
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -32,7 +34,7 @@ import kotlin.concurrent.withLock
 import com.aeidolon.vaultexplorer.VeLog
 import com.aeidolon.vaultexplorer.util.NotificationLocale
 
-private const val CONTAINER_DOCUMENTS_AUTHORITY = "com.aeidolon.vaultexplorer.documents"
+private val CONTAINER_DOCUMENTS_AUTHORITY = ProviderAuthorities.DOCUMENTS
 
 /**
  * Foreground service backing the "keep vaults running in background"

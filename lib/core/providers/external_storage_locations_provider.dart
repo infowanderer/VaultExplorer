@@ -1,3 +1,4 @@
+import 'package:vaultexplorer/core/config/application_identity.dart';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,30 +21,9 @@ class SelfReferentialStorageException implements Exception {
 class ExternalStorageLocationsNotifier extends Notifier<List<ExternalStorageLocation>> {
   static const ExternalStorageRepository _repo = ExternalStorageRepository();
 
-  /// SAF authority of this app's own `ContainerDocumentsProvider` (see the
-  /// Kotlin class of that name, and `FolderDocumentProviderHandlers`, which
-  /// mounts a single subfolder as its own root under the same provider).
-  /// Both "expose the whole unlocked vault" and "expose one subfolder of
-  /// it" publish their SAF roots through this one authority, so comparing
-  /// against it alone is enough to catch either case -- content already
-  /// reachable directly inside the app must not also be pickable back in
-  /// as an "external storage" location, which would just be a confusing,
-  /// redundant alias for the same data. Must be kept in sync with the
-  /// `<provider android:authorities=...>` entry in AndroidManifest.xml.
-  static const _kOwnDocumentsProviderAuthority = 'com.aeidolon.vaultexplorer.documents';
-
-  /// True if [treeUri] is (or lives under) this app's own SAF document
-  /// provider. Compares the URI's authority component only -- not a
-  /// string prefix -- so it can't be fooled or missed by query-string or
-  /// path differences between roots.
-  static bool _isOwnDocumentsProviderUri(String? treeUri) {
-    if (treeUri == null || treeUri.isEmpty) return false;
-    try {
-      return Uri.parse(treeUri).authority == _kOwnDocumentsProviderAuthority;
-    } catch (_) {
-      return false;
-    }
-  }
+  /// Refuse the current build's own provider, including preview installations.
+  static bool _isOwnDocumentsProviderUri(String? treeUri) =>
+      ApplicationIdentity.isOwnDocumentsProviderUri(treeUri);
 
   @override
   List<ExternalStorageLocation> build() {

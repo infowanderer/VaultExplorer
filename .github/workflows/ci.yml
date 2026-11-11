@@ -62,6 +62,9 @@ jobs:
       - name: flutter test
         run: flutter test
 
+      - name: Preview application identity
+        run: flutter test --dart-define=VAULTEXPLORER_PREVIEW=true test/core/config/application_identity_test.dart
+
   kotlin_unit_tests:
     name: Kotlin unit tests
     runs-on: ubuntu-latest

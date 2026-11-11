@@ -1,3 +1,4 @@
+import 'package:vaultexplorer/core/config/application_identity.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
@@ -1682,7 +1683,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen>
   String _contentUriFor(String fileName) {
     final volId = widget.container.volId;
     final escapedPath = Uri.encodeComponent(fileName);
-    return 'content://com.aeidolon.vaultexplorer.documents/document/'
+    return 'content://${ApplicationIdentity.documentsAuthority}/document/'
         '$volId%3Afile%3A$escapedPath';
   }
 
