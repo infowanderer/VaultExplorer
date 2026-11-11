@@ -53,6 +53,16 @@ class NoStagingTests(unittest.TestCase):
         self.assertNotIn('::mkstemp(', helper)
         self.assertIn('SYS_memfd_create', helper)
 
+    def test_private_metadata_services_have_no_plaintext_writer(self):
+        for path in ('lib/data/services/container_repository.dart',
+                     'lib/data/services/external_storage_repository.dart',
+                     'lib/data/services/discrete_mode_repository.dart',
+                     'lib/features/decoy/local/decoy_local_marks_service.dart'):
+            source = (ROOT / path).read_text()
+            self.assertIn('SecureMetadataStore', source)
+            self.assertNotIn('writeAsString(', source)
+            self.assertNotIn('writeAsBytes(', source)
+
     def test_split_volume_mirror_refuses_external_staging(self):
         source = (NATIVE / 'LocalSplitFuseCallback.kt').read_text()
         self.assertNotIn('dir = File(context.cacheDir, "split_rw_mirror_', source)

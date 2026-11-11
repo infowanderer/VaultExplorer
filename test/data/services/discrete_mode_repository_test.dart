@@ -1,3 +1,4 @@
+import 'package:vaultexplorer/core/api/vault_engine_channel.dart';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -21,12 +22,30 @@ void main() {
   late PathProviderPlatform originalPlatform;
 
   setUp(() {
+    final protected = <String, String>{};
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(kVaultEngineChannel, (call) async {
+          final args = Map<String, dynamic>.from(call.arguments as Map);
+          final key = args['key'] as String;
+          switch (call.method) {
+            case 'readSecure':
+              return protected[key];
+            case 'containsKeySecure':
+              return protected.containsKey(key);
+            case 'writeSecure':
+              protected[key] = args['value'] as String;
+              return true;
+          }
+          throw StateError('Unexpected native call');
+        });
     tempDir = Directory.systemTemp.createTempSync('discrete_mode_repo_test_');
     originalPlatform = PathProviderPlatform.instance;
     PathProviderPlatform.instance = _FakePathProviderPlatform(tempDir.path);
   });
 
   tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(kVaultEngineChannel, null);
     PathProviderPlatform.instance = originalPlatform;
     tempDir.deleteSync(recursive: true);
   });
@@ -36,51 +55,57 @@ void main() {
     expect(recents, isEmpty);
   });
 
-  test('recordOpened persists an entry that loadRecents can read back', () async {
-    await DiscreteModeRepository.recordOpened(
-      DecoyRecentFile(
-        uri: 'content://a/one.pdf',
-        displayName: 'one.pdf',
-        openedAt: DateTime.fromMillisecondsSinceEpoch(1000),
-      ),
-    );
+  test(
+    'recordOpened persists an entry that loadRecents can read back',
+    () async {
+      await DiscreteModeRepository.recordOpened(
+        DecoyRecentFile(
+          uri: 'content://a/one.pdf',
+          displayName: 'one.pdf',
+          openedAt: DateTime.fromMillisecondsSinceEpoch(1000),
+        ),
+      );
 
-    final recents = await DiscreteModeRepository.loadRecents();
+      final recents = await DiscreteModeRepository.loadRecents();
 
-    expect(recents, hasLength(1));
-    expect(recents.single.uri, 'content://a/one.pdf');
-    expect(recents.single.displayName, 'one.pdf');
-  });
+      expect(recents, hasLength(1));
+      expect(recents.single.uri, 'content://a/one.pdf');
+      expect(recents.single.displayName, 'one.pdf');
+    },
+  );
 
-  test('recordOpened de-duplicates by uri, moving the entry to the front', () async {
-    await DiscreteModeRepository.recordOpened(
-      DecoyRecentFile(
-        uri: 'content://a/one.pdf',
-        displayName: 'one.pdf',
-        openedAt: DateTime.fromMillisecondsSinceEpoch(1000),
-      ),
-    );
-    await DiscreteModeRepository.recordOpened(
-      DecoyRecentFile(
-        uri: 'content://b/two.pdf',
-        displayName: 'two.pdf',
-        openedAt: DateTime.fromMillisecondsSinceEpoch(2000),
-      ),
-    );
-    await DiscreteModeRepository.recordOpened(
-      DecoyRecentFile(
-        uri: 'content://a/one.pdf',
-        displayName: 'one.pdf (reopened)',
-        openedAt: DateTime.fromMillisecondsSinceEpoch(3000),
-      ),
-    );
+  test(
+    'recordOpened de-duplicates by uri, moving the entry to the front',
+    () async {
+      await DiscreteModeRepository.recordOpened(
+        DecoyRecentFile(
+          uri: 'content://a/one.pdf',
+          displayName: 'one.pdf',
+          openedAt: DateTime.fromMillisecondsSinceEpoch(1000),
+        ),
+      );
+      await DiscreteModeRepository.recordOpened(
+        DecoyRecentFile(
+          uri: 'content://b/two.pdf',
+          displayName: 'two.pdf',
+          openedAt: DateTime.fromMillisecondsSinceEpoch(2000),
+        ),
+      );
+      await DiscreteModeRepository.recordOpened(
+        DecoyRecentFile(
+          uri: 'content://a/one.pdf',
+          displayName: 'one.pdf (reopened)',
+          openedAt: DateTime.fromMillisecondsSinceEpoch(3000),
+        ),
+      );
 
-    final recents = await DiscreteModeRepository.loadRecents();
+      final recents = await DiscreteModeRepository.loadRecents();
 
-    expect(recents, hasLength(2));
-    expect(recents.first.uri, 'content://a/one.pdf');
-    expect(recents.first.displayName, 'one.pdf (reopened)');
-  });
+      expect(recents, hasLength(2));
+      expect(recents.first.uri, 'content://a/one.pdf');
+      expect(recents.first.displayName, 'one.pdf (reopened)');
+    },
+  );
 
   test('clearRecents empties the list', () async {
     await DiscreteModeRepository.recordOpened(

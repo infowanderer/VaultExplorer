@@ -1,3 +1,4 @@
+import 'secure_metadata_store.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -15,26 +16,41 @@ class ExternalStorageRepository {
     return File('${dir.path}/external_storages.json');
   }
 
+  SecureMetadataStore get _metadata => SecureMetadataStore(
+    key: 'private_metadata_external_storages_v1',
+    legacyFile: () => _dataFile,
+  );
+
   Future<List<ExternalStorageLocation>> loadAll() async {
     try {
-      final file = await _dataFile;
-      if (!await file.exists()) return const [];
-      final raw = jsonDecode(await file.readAsString()) as List<dynamic>;
+      final serialized = await _metadata.read();
+      if (serialized == null) return const [];
+      final raw = jsonDecode(serialized) as List<dynamic>;
       return raw
-          .map((e) => ExternalStorageLocation.fromJson(e as Map<String, dynamic>))
+          .map(
+            (e) => ExternalStorageLocation.fromJson(e as Map<String, dynamic>),
+          )
           .toList();
     } catch (e) {
-      VeLog.w(_kLogTag, 'Failed to load external storages', e);
+      VeLog.w(_kLogTag, 'Protected external storages could not be loaded');
       return const [];
     }
   }
 
   Future<void> saveAll(List<ExternalStorageLocation> list) async {
     try {
-      final file = await _dataFile;
-      await file.writeAsString(jsonEncode(list.map((e) => e.toJson()).toList()));
+      await _metadata.update((previous) {
+        // Refuse to replace a catalog that could not be decoded into locations.
+        if (previous != null) {
+          for (final item in jsonDecode(previous) as List) {
+            ExternalStorageLocation.fromJson(item as Map<String, dynamic>);
+          }
+        }
+        return jsonEncode(list.map((e) => e.toJson()).toList());
+      });
     } catch (e) {
-      VeLog.w(_kLogTag, 'Failed to save external storages', e);
+      VeLog.w(_kLogTag, 'Protected external storages could not be saved');
+      rethrow;
     }
   }
 }

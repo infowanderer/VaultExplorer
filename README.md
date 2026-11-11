@@ -70,10 +70,19 @@ Filesystems: FAT12/16/32, exFAT, NTFS, ext2/3/4.
 - **Check & Repair** — diagnose header or filesystem issues
 - **Header Backup** — back up and restore a container's header (or a folder vault's config file)
 
+## Development branch status
+
+This branch contains an uninstalled tablet sorting preview and strict privacy
+hardening. The upstream release APKs linked below do **not** contain these changes.
+Scratch-dependent archive, recording and edit-export workflows are intentionally
+blocked. Review [the privacy report](docs/media-organizer/PLAINTEXT-WRITES.md) for
+metadata migration, limitations and checks before using a development build.
+Android integration compilation and tablet testing are still required.
+
 ## Security & privacy
 
 - No `INTERNET` permission
-- Decryption and re-encryption happen in memory. Scratch files stay in the app's private cache, are zero-wiped and deleted when done, and leftovers from a crash are wiped at next launch
+- Reviewed plaintext staging paths now stream in bounded memory or fail closed. CryFS pending-write scratch uses bounded anonymous RAM; workflows still requiring plaintext scratch are blocked. Device-encrypted metadata can remain outside a vault. This is not a complete guarantee against OS artifacts or plaintext logging; see the privacy report.
 - Master lock via password, PIN, pattern, or biometrics. After the 5th failed attempt the lockout starts at 30 seconds and grows by 30 seconds per further failure, up to 5 minutes, and survives force-kills. Individual containers can be unlocked by password, remembered password, biometrics, pattern, or PIN. Biometric unlock, for the master lock and for each vault, turns itself off and falls back to the password (dropping a vault's saved credentials) if a new fingerprint or face is enrolled on the device. Removing the master password requires the master password itself. Saved credentials are never shown in plain text, and PIM values are obfuscated during unlock
 - Optional key caching in the Android Keystore (AES-GCM, hardware-backed where supported)
 - Task-switcher previews are blocked and the screen is blanked when the app is backgrounded. Screenshot blocking (`FLAG_SECURE`) is on by default and can be turned off in Settings

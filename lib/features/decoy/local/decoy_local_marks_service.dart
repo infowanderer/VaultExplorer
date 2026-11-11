@@ -1,6 +1,7 @@
+import 'package:vaultexplorer/data/services/secure_metadata_store.dart';
 // Persistence for the bookmarks and pins of phone storage: the primary local
 // storage container and any external storage locations. Kept entirely
-// separate from [ContainerRepository]'s containers_v2.json.
+// separate from [ContainerRepository]'s protected metadata record.
 //
 // Why this can't just reuse ContainerRepository: that file is exactly what
 // VaultDashboardController.loadAll() reads to populate the real vault
@@ -8,10 +9,10 @@
 // a ContainerRecord for the local-storage pseudo-container would show up
 // as a bogus, unopenable tile on the *real* dashboard after a genuine
 // unlock -- a direct leak of "decoy mode was used" defeating the entire
-// point of Mask Mode. This service's own small JSON file never mixes with
-// that data.
+// point of Mask Mode. Its protected metadata record never mixes with
+// the real-vault dashboard records.
 //
-// The file maps a container's uri to its marks. It used to hold one shared
+// The record maps a container's uri to its marks. It used to hold one shared
 // list, so a bookmark made on an SD card also appeared in phone storage (and
 // vice versa); keying by uri keeps each location's marks its own.
 import 'dart:convert';
@@ -19,13 +20,23 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 import 'package:vaultexplorer/data/models/vault_marks.dart';
+import 'package:vaultexplorer/data/services/app_secure_storage.dart';
 
 class DecoyLocalMarksService {
   /// [fileLocator] exists so tests can point the service at a temp file.
-  DecoyLocalMarksService({Future<File> Function()? fileLocator})
-    : _fileLocator = fileLocator ?? _defaultFile;
+  DecoyLocalMarksService({
+    Future<File> Function()? fileLocator,
+    this.secure = AppSecureStorage.instance,
+  }) : _fileLocator = fileLocator ?? _defaultFile;
 
   final Future<File> Function() _fileLocator;
+  final AppSecureStorage secure;
+  SecureMetadataStore get _metadata => SecureMetadataStore(
+    key: 'private_metadata_local_marks_v1',
+    legacyFile: _fileLocator,
+    secure: secure,
+    expectMap: true,
+  );
 
   static Future<File> _defaultFile() async {
     final dir = await getApplicationDocumentsDirectory();
@@ -43,16 +54,17 @@ class DecoyLocalMarksService {
     return result;
   }
 
-  Future<Map<String, Object?>> _readAll(File file) async {
-    if (!await file.exists()) return <String, Object?>{};
-    final raw = jsonDecode(await file.readAsString());
+  Future<Map<String, Object?>> _readAll() async {
+    final serialized = await _metadata.read();
+    if (serialized == null) return <String, Object?>{};
+    final raw = jsonDecode(serialized);
     if (raw is! Map) return <String, Object?>{};
     return Map<String, Object?>.from(raw);
   }
 
   Future<VaultMarks> load(String containerUri) => _serialized(() async {
     try {
-      final all = await _readAll(await _fileLocator());
+      final all = await _readAll();
       final entry = all[containerUri];
       return entry == null ? VaultMarks.empty : VaultMarks.fromJson(entry);
     } catch (_) {
@@ -65,23 +77,17 @@ class DecoyLocalMarksService {
   Future<bool> save(String containerUri, VaultMarks marks) =>
       _serialized(() async {
         try {
-          final file = await _fileLocator();
-          Map<String, Object?> all;
-          try {
-            all = await _readAll(file);
-          } catch (_) {
-            // Unreadable file: other locations' marks are lost either way,
-            // and refusing to write would make this one unsaveable forever.
-            all = <String, Object?>{};
-          }
-          if (marks.isEmpty) {
-            all.remove(containerUri);
-          } else {
-            all[containerUri] = marks.toJson();
-          }
-          final tmp = File('${file.path}.tmp');
-          await tmp.writeAsString(jsonEncode(all), flush: true);
-          await tmp.rename(file.path);
+          await _metadata.update((serialized) {
+            final all = serialized == null
+                ? <String, Object?>{}
+                : Map<String, Object?>.from(jsonDecode(serialized) as Map);
+            if (marks.isEmpty) {
+              all.remove(containerUri);
+            } else {
+              all[containerUri] = marks.toJson();
+            }
+            return jsonEncode(all);
+          });
           return true;
         } catch (_) {
           return false;

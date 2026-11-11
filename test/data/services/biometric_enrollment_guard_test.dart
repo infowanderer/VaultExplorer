@@ -66,6 +66,12 @@ class _MemorySecureStorage extends AppSecureStorage {
   Future<String?> read({required String key}) async => data[key];
 
   @override
+  Future<bool> writeVerified({required String key, required String value}) async {
+    await write(key: key, value: value);
+    return true;
+  }
+
+  @override
   Future<void> write({required String key, required String? value}) async {
     if (value == null) {
       data.remove(key);

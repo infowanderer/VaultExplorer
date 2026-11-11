@@ -134,5 +134,20 @@ review. Document thumbnails, SAF exports, backend copy/import and CryFS staging
 have been revised. Scratch-dependent recording, edit exports, archives, cropped
 capture and split-volume mirror fallback are now restricted in this draft build.
 The earlier baseline description of unrestricted host tools no longer describes
-the current branch. Metadata persistence and device-level verification remain
-open privacy boundaries.
+the current branch. Container records, external storage locations, local recents
+and local bookmarks now use device Keystore encryption with verified legacy
+migration. They are outside the media container and do not acquire an independent
+vault-passphrase lock. Key names, logs and device-level verification remain open
+privacy boundaries. See the linked report for residual legacy files and limits.
+
+### Build investigation
+
+The pinned Flutter SDK defaults to compile/target API 36; the host app explicitly
+requires compile API 37 and build tools 37.0.0. The official Android 17 setup guide
+also documents compile API 37:
+https://developer.android.com/about/versions/17/setup-sdk
+
+A refreshed official SDK feed provides platform 37.0. SDK/build-tools and NDK
+archives have been downloaded and checksum-verified for build validation. No SDK
+downgrade or fake platform installation was used. Build configuration has not yet
+been validated by producing an APK; device tests remain outstanding.
