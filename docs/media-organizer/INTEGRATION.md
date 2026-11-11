@@ -126,3 +126,13 @@ dependency resolution but was not needed for the reported results.
 Next build should use a separate application ID/signing setup for a test variant
 so it can coexist with an existing VaultExplorer installation. No install/uninstall
 or modification of a tablet's existing vault data was performed.
+
+## Strict privacy update
+
+See [PLAINTEXT-WRITES.md](PLAINTEXT-WRITES.md) for changes after this baseline
+review. Document thumbnails, SAF exports, backend copy/import and CryFS staging
+have been revised. Scratch-dependent recording, edit exports, archives, cropped
+capture and split-volume mirror fallback are now restricted in this draft build.
+The earlier baseline description of unrestricted host tools no longer describes
+the current branch. Metadata persistence and device-level verification remain
+open privacy boundaries.

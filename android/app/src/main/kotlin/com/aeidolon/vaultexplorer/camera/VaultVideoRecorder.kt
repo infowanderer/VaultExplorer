@@ -219,7 +219,7 @@ class VaultVideoRecorder(
         fun trimVideo(sourcePath: String, startMs: Long, endMs: Long): String? {
             val srcFile = File(sourcePath)
             if (!srcFile.exists() || startMs >= endMs) return sourcePath
-            val destFile = File.createTempFile("vx_vid_trim_", ".mp4", srcFile.parentFile)
+            val destFile = com.aeidolon.vaultexplorer.privacy.PlaintextScratch.tempFile("vx_vid_trim_", ".mp4", srcFile.parentFile)
 
             var extractor: MediaExtractor? = null
             var muxer: MediaMuxer? = null
@@ -337,6 +337,8 @@ class VaultVideoRecorder(
     val isSegmented: Boolean get() = segmentSeconds > 0
 
     fun prepareEncoder(orientationDegrees: Int = 0) {
+        com.aeidolon.vaultexplorer.privacy.PlaintextScratch.requireAllowed()
+
         releaseEncoder()
         val useHevc = hevcEncoderAvailable
         val bitrate = if (useHevc) quality.bitrateHevc else quality.bitrateH264
@@ -369,7 +371,7 @@ class VaultVideoRecorder(
         paused = false
         pausedSinceMs = 0L
         pausedTotalMs = 0L
-        val temp = File.createTempFile(TEMP_PREFIX, TEMP_SUFFIX, cacheDir)
+        val temp = com.aeidolon.vaultexplorer.privacy.PlaintextScratch.tempFile(TEMP_PREFIX, TEMP_SUFFIX, cacheDir)
         tempFile = temp
         VeLog.d(TAG) { "prepareEncoder: ${width}x$height quality=$quality codec=${if (useHevc) "HEVC" else "H264"} bitrate=$bitrate orientation=$orientationDegrees audio=$recordAudio" }
 

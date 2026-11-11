@@ -276,137 +276,23 @@ object ContainerEngine {
         if (!srcIsBackend && !destIsBackend) {
             return NativeEngine.copyFile(srcPath, srcVolId, destPath, destVolId, opId)
         }
-        // At least one side is a folder-vault session (gocryptfs/cryptomator/cryfs).
-        // Callers should go through ContainerFileSystem.copyFile instead of this
-        // function directly for that case -- it applies the correct per-backend
-        // locking around each half (skipsPerVolumeLock-aware extract,
-        // managesOwnWriteLocking-aware write-back) via copyFileViaBackend below,
-        // rather than this function's own unwrapped extractFile/writeBackFile
-        // calls. See copyFileViaBackend's doc comment for why that split exists.
-        return copyFileViaBackend(srcVolId, srcPath, destVolId, destPath, opId,
-            extract = { path, dest -> extractFile(path, dest, srcVolId, opId) },
-            writeBack = { path, source -> writeBackFile(path, source, destVolId, opId) })
+        // Apply the streaming backend path and its per-volume locking policy.
+        return ContainerFileSystem.copyFile(srcVolId, srcPath, destVolId, destPath, opId)
     }
 
-    /**
-     * The folder-vault half of [copyFile]: extract [srcPath] to a plaintext
-     * temp file via [extract], then hand that temp file to [writeBack] for
-     * [destPath]. Exists as its own function -- rather than inlined in
-     * [copyFile] -- so [ContainerFileSystem.copyFile] can drive it with
-     * [extract]/[writeBack] implementations that apply the correct
-     * per-backend Kotlin lock around each call (see that function's doc
-     * comment for why holding one lock across both steps, the way the
-     * disk-image branch above safely does, isn't safe here: there's no
-     * per-chunk yield point in a two-call extract-then-writeback sequence
-     * the way there is in NativeEngine.copyFile's chunked loop).
-     * [copyFile] above still calls this directly for callers that bypass
-     * ContainerFileSystem, with [extract]/[writeBack] plugged in unwrapped --
-     * exactly the previous behavior, preserved for anything that doesn't
-     * need the lock-safety fix (there are none in this codebase today, but
-     * this keeps the two call shapes symmetric rather than only reachable
-     * one way).
-     *
-     * NOTE: [ContainerFileSystem.copyFile] no longer routes non-empty files
-     * through here -- it streams them through memory instead
-     * ([VaultCopyInputStream]), so no plaintext reaches disk. This remains for
-     * empty/unsized files and for callers that bypass ContainerFileSystem.
-     *
-     * No native cross-container stream-copy primitive exists for folder
-     * vaults, so unlike the disk-image formats we can't hand this straight
-     * to NativeEngine. Bridge through a single plaintext temp file instead
-     * of falling back to Dart's chunked readFileChunk/writeFileChunk loop:
-     * that loop pays a full platform-channel round trip per 2MB chunk in
-     * both directions, which is the actual source of the slowdown, not
-     * crypto or disk throughput. extractFile and writeBackFile already
-     * stream the whole file in one native/backend call each (same
-     * primitives export/import use), so this keeps intra-vault copy off
-     * the channel entirely except for these two calls.
-     *
-     * opId flows into both calls so a folder-vault session can report
-     * progress through CopyProgressBridge the same way NativeEngine
-     * .copyFile's JNI path already does for the disk-image branch above.
-     * Coverage is asymmetric right now: writeBackFile's NativeEngine
-     * fallback takes opId too, so a disk-image destination reports
-     * progress same as a folder-vault one -- but extractFile's NativeEngine
-     * fallback still doesn't, so a disk-image *source* stays silent for
-     * the extract half of the copy until that entry point gets the same
-     * treatment.
-     */
-    /**
-     * Plaintext intermediates of copies that are running right now. Lets the
-     * startup orphan sweep (see MainActivity.onCreate) delete `ve_copy_*`
-     * files left by a crashed or killed process without touching one a live
-     * copy is still using.
-     */
-    private val activeCopyTempFiles: MutableSet<String> =
-        java.util.concurrent.ConcurrentHashMap.newKeySet()
-
-    fun isActiveCopyTempFile(file: java.io.File): Boolean =
-        activeCopyTempFiles.contains(file.absolutePath)
-
-    fun copyFileViaBackend(
-        srcVolId: Int, srcPath: String, destVolId: Int, destPath: String, opId: Int = 0,
-        extract: (path: String, destinationPath: String) -> Boolean,
-        writeBack: (path: String, sourcePath: String) -> Boolean,
-    ): Boolean {
-        val tempFile = java.io.File.createTempFile("ve_copy_", ".tmp")
-        activeCopyTempFiles.add(tempFile.absolutePath)
-        return try {
-            val t0 = System.currentTimeMillis()
-            val extracted = extract(srcPath, tempFile.absolutePath)
-            val extractMs = System.currentTimeMillis() - t0
-            if (!extracted || !tempFile.exists()) return false
-            val bytes = tempFile.length()
-
-            val t1 = System.currentTimeMillis()
-            val written = writeBack(destPath, tempFile.absolutePath)
-            val writeBackMs = System.currentTimeMillis() - t1
-
-            val t2 = System.currentTimeMillis()
-            SecureFileWipe.secureDeleteFile(tempFile)
-            val wipeMs = System.currentTimeMillis() - t2
-
-            val totalMs = extractMs + writeBackMs + wipeMs
-            val mb = bytes / (1024.0 * 1024.0)
-            val mbps = if (totalMs > 0) mb / (totalMs / 1000.0) else 0.0
-            VeLog.i("VaultProfiling") {
-                String.format(
-                    """
-                    ========== INTRA_VAULT COPY_FILE PROFILING ==========
-                    File Size                    : %.2f MB (%d bytes)
-                    Total Time                   : %d ms (Overall Throughput: %.2f MB/s)
-                    -------------------------------------------------
-                    1. Extract (decrypt) Time    : %d ms
-                    2. Write-back (encrypt) Time : %d ms
-                    3. Secure Wipe of Temp Time  : %d ms
-                    ===================================================
-                    """.trimIndent(),
-                    mb, bytes, totalMs, mbps, extractMs, writeBackMs, wipeMs
-                )
-            }
-            written
-        } finally {
-            if (tempFile.exists()) SecureFileWipe.secureDeleteFile(tempFile)
-            activeCopyTempFiles.remove(tempFile.absolutePath)
-        }
-    }
+    /** Compatibility hook for cleaning old, inactive plaintext staging files. */
+    @Suppress("UNUSED_PARAMETER")
+    fun isActiveCopyTempFile(file: java.io.File): Boolean = false
 
     fun importStream(path: String, inputStream: java.io.InputStream, volId: Int, opId: Int = 0): Boolean {
         VaultBackendRegistry.get(volId)?.let { session ->
             return session.importStream(path, inputStream, volId)
         }
-        val tempFile = java.io.File.createTempFile("vc_import_", ".tmp")
-        activeCopyTempFiles.add(tempFile.absolutePath)
         return try {
-            tempFile.outputStream().use { out -> inputStream.copyTo(out) }
-            NativeEngine.writeBackFile(path, tempFile.absolutePath, volId, opId)
-        } finally {
-            // A plain delete() leaves the bytes on flash. Registered with
-            // activeCopyTempFiles so the startup orphan sweep can clean up
-            // after a crash without touching an import that is still running.
-            if (tempFile.exists()) SecureFileWipe.secureDeleteFile(tempFile)
-            activeCopyTempFiles.remove(tempFile.absolutePath)
-        }
+            com.aeidolon.vaultexplorer.privacy.VaultStreamSink.write(inputStream,
+                writeChunk = { offset, data -> NativeEngine.writeFileChunk(path, offset, data, volId) },
+                finish = { finishWrite(path, volId) })
+        } catch (_: Exception) { false }
     }
 
     fun readStream(stream: Long, offset: Long, out: ByteArray, length: Int, volId: Int): Int {

@@ -75,3 +75,26 @@ object VaultStreamTransfer {
         } finally { buffer.fill(0) }
     }
 }
+
+/** Streams an incoming file into an encrypted destination without a cache spool. */
+object VaultStreamSink {
+    fun write(input: InputStream, writeChunk: (Long, ByteArray) -> Boolean,
+              finish: () -> Boolean): Boolean {
+        val buffer = ByteArray(256 * 1024)
+        var offset = 0L
+        try {
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                if (count == 0) throw IOException("Incoming stream stalled")
+                val chunk = if (count == buffer.size) buffer else buffer.copyOf(count)
+                try {
+                    if (!writeChunk(offset, chunk)) throw IOException("Vault write failed")
+                } finally { if (chunk !== buffer) chunk.fill(0) }
+                offset += count
+            }
+            if (offset == 0L && !writeChunk(0, ByteArray(0))) throw IOException("Empty vault write failed")
+            return finish()
+        } finally { buffer.fill(0) }
+    }
+}

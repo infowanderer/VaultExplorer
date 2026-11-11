@@ -1136,6 +1136,10 @@ class VaultCameraSession(
         orientationDegrees: Int? = null,
         callback: (Boolean, ByteArray?, ByteArray?, String?) -> Unit,
     ) {
+        if (aspectRatio != null && !com.aeidolon.vaultexplorer.privacy.PlaintextScratch.allowed) {
+            callback(false, null, null, "Cropped capture is unavailable in strict privacy mode; use the original camera aspect ratio.")
+            return
+        }
         runOnCameraThread {
             if (!stillPreconditionsOk { callback(false, null, null, it) }) return@runOnCameraThread
             pendingPhotoBytesCallback = callback
@@ -1661,7 +1665,7 @@ class VaultCameraSession(
 
             // Bitmap compression drops EXIF. Restore the original orientation so
             // Android's JPEG_ORIENTATION continues to display the crop upright.
-            val croppedFile = File.createTempFile("camera-crop-", ".jpg", context.cacheDir)
+            val croppedFile = com.aeidolon.vaultexplorer.privacy.PlaintextScratch.tempFile("camera-crop-", ".jpg", context.cacheDir)
             temporaryFile = croppedFile
             croppedFile.writeBytes(encoded)
             ExifInterface(croppedFile.absolutePath).apply {

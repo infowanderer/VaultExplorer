@@ -25,5 +25,38 @@ class NoStagingTests(unittest.TestCase):
         for forbidden in ('java.io.File', 'java.nio.file', 'android.content.Context'):
             self.assertNotIn(forbidden, source)
 
+    def test_legacy_copy_and_import_spools_removed(self):
+        source = self.assert_no_staging('container/ContainerEngine.kt')
+        self.assertNotIn('copyFileViaBackend(', source)
+        self.assertNotIn('"vc_import_"', source)
+        self.assertNotIn('"ve_copy_"', source)
+
+    def test_recording_edit_and_archive_staging_uses_denying_policy(self):
+        files = ('handlers/ArchiveHandlers.kt', 'handlers/VideoEditHandlers.kt',
+                 'handlers/AudioEditHandlers.kt', 'camera/VaultVideoRecorder.kt',
+                 'camera/SegmentedVideoEngine.kt', 'camera/VaultCameraSession.kt',
+                 'audiocapture/VaultAudioRecorder.kt')
+        for path in files:
+            source = (NATIVE / path).read_text()
+            self.assertNotIn('File.createTempFile(', source)
+            self.assertIn('PlaintextScratch', source)
+        archives = (NATIVE / 'handlers/ArchiveHandlers.kt').read_text()
+        self.assertNotIn('File(activity.cacheDir, "arch_', archives)
+        self.assertIn('"PRIVACY_BLOCKED"', archives)
+
+    def test_cryfs_never_falls_back_to_filesystem_scratch(self):
+        source = (ROOT / 'android/app/src/main/cpp/foldervault/fv_cryfs_vault.cpp').read_text()
+        self.assertNotIn('mkstemp(', source)
+        self.assertIn('vault_privacy::RamScratch', source)
+        helper = (ROOT / 'android/app/src/main/cpp/privacy/ram_scratch.h').read_text()
+        self.assertNotIn('::open(', helper)
+        self.assertNotIn('::mkstemp(', helper)
+        self.assertIn('SYS_memfd_create', helper)
+
+    def test_split_volume_mirror_refuses_external_staging(self):
+        source = (NATIVE / 'LocalSplitFuseCallback.kt').read_text()
+        self.assertNotIn('dir = File(context.cacheDir, "split_rw_mirror_', source)
+        self.assertIn('PlaintextScratch.file(context.cacheDir, "split_rw_mirror_', source)
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

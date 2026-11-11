@@ -77,3 +77,42 @@ class VaultReadInputStreamTest {
         try {input.read(ByteArray(2),1,Int.MAX_VALUE);fail()}catch(_:IndexOutOfBoundsException){}
     }
 }
+
+class VaultStreamSinkTest {
+    @Test fun importWritesOnlyBoundedChunksAndClearsThem() {
+        val input=ByteArray(600000){(it%127).toByte()};val output=ByteArrayOutputStream()
+        val seen=mutableListOf<ByteArray>();var expected=0L
+        assertTrue(VaultStreamSink.write(input.inputStream(),{offset,chunk ->
+            assertEquals(expected,offset);expected+=chunk.size;assertTrue(chunk.size<=256*1024)
+            output.write(chunk);seen+=chunk;true
+        },{true}))
+        assertArrayEquals(input,output.toByteArray());assertTrue(seen.all{b->b.all{it==0.toByte()}})
+    }
+    @Test fun emptyImportCreatesEmptyOutput() {
+        var calls=0;assertTrue(VaultStreamSink.write(byteArrayOf().inputStream(),{offset,bytes->
+            assertEquals(0,offset);assertEquals(0,bytes.size);calls++;true
+        },{true}));assertEquals(1,calls)
+    }
+    @Test fun failedWriteDoesNotFinalize() {
+        var finalized=false
+        try {VaultStreamSink.write(byteArrayOf(1).inputStream(),{_,_->false},{finalized=true;true});fail()}
+        catch(_:IOException){};assertFalse(finalized)
+    }
+    @Test fun failedFinishDoesNotReportSuccess() {
+        assertFalse(VaultStreamSink.write(byteArrayOf(1).inputStream(),{_,_->true},{false}))
+    }
+    @Test fun plaintextScratchIsDeniedBeforeAnythingIsCreated() {
+        val directory=java.nio.file.Files.createTempDirectory("scratch-policy-fixture").toFile()
+        try {
+            assertFalse(PlaintextScratch.allowed)
+            for (attempt in listOf<()->Unit>(
+                {PlaintextScratch.requireAllowed()},
+                {PlaintextScratch.tempFile("recording", ".mp4", directory)},
+                {PlaintextScratch.file(directory, "archive.tmp")}
+            )) {
+                try {attempt();fail("must refuse plaintext staging")}catch(e:IOException){assertTrue(e.message!!.contains("strict privacy"))}
+            }
+            assertEquals(0,directory.listFiles()!!.size)
+        } finally {directory.delete()}
+    }
+}
