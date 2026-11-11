@@ -10,6 +10,8 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.io.FileInputStream
+import java.io.OutputStream
+import com.aeidolon.vaultexplorer.privacy.VaultStreamTransfer
 import java.io.InputStream
 import java.security.MessageDigest
 import java.util.concurrent.ExecutorService
@@ -59,6 +61,35 @@ class ImportExportHandlers(
     )
 
     companion object {
+        private fun exportSourceSize(volId: Int, path: String): Long {
+            val parent = path.substringBeforeLast('/', "")
+            val name = path.substringAfterLast('/')
+            val exists = ContainerFileSystem.listDirectory(volId, parent)
+                ?.filterNot { it.startsWith("System:") }
+                ?.mapNotNull { DirEntryWire.parse(it) }
+                ?.any { it.name == name && !it.isDir } == true
+            if (!exists) throw java.io.IOException("Export source unavailable")
+            val size = ContainerFileSystem.getFileSize(volId, path)
+            if (size < 0) throw java.io.IOException("Export size unavailable")
+            return size
+        }
+
+        private fun streamExport(volId: Int, path: String, size: Long, output: OutputStream, opId: Int = 0): Long {
+            val written = VaultStreamTransfer.copy(size,
+                readChunk = { offset, length -> ContainerFileSystem.readFileChunk(volId, path, offset, length) },
+                output = output,
+                checkCancelled = {
+                    if (opId > 0 && ExportCancellation.isCancelled(opId)) throw ExportCancelledException("Export cancelled")
+                },
+                onProgress = { bytes -> if (opId > 0) ExportProgressBridge.reportChunk(opId, bytes) },
+            )
+            if (ContainerFileSystem.getFileSize(volId, path) != size) {
+                throw java.io.IOException("Export source changed size")
+            }
+            return written
+        }
+
+
         /**
          * Fraction of a destination's reported free space held back as a
          * safety cushion in [rejectIfInsufficientSpace], to absorb real
@@ -384,17 +415,8 @@ class ImportExportHandlers(
      *   below is guarded on `opId > 0` for that reason, matching how
      *   [ContainerFileSystem.extractToFile] treats an opId of 0.
      */
-    /**
-     * Abstracts the SAF (DocumentFile) vs raw (File) export destination.
-     * The two leaf-write mechanics genuinely differ -- SAF has to extract to
-     * a cache temp file and copy it through the DocumentsProvider, while a
-     * raw destination lets ContainerFileSystem.extractToFile write straight
-     * to the final path, no temp file or copy needed -- but the cancellation
-     * check, directory walk, and recursion around that write were previously
-     * duplicated wholesale across exportEntryRecursive/exportEntryRecursiveRaw.
-     * This carries only that duplicated control flow; each leaf-write body
-     * below is unchanged from its original function.
-     */
+    /** Both SAF export paths stream decrypted chunks straight to the chosen
+     * destination. No intermediate plaintext cache file is created. */
     private sealed class ExportDestination {
         abstract fun childDirectory(name: String): ExportDestination?
         abstract fun writeLeaf(
@@ -419,29 +441,25 @@ class ImportExportHandlers(
                     ExportProgressBridge.reportProgress(opId, doneCounter.get(), total, name, transferredCounter.get(), totalBytes)
                     ExportProgressBridge.beginFileChunks(opId, transferredCounter.get())
                 }
-                val tempFile = File(activity.cacheDir, "export_${System.nanoTime()}")
+                // Only the document created by this attempt may be cleaned up.
+                // Never delete a pre-existing export destination.
+                val size = exportSourceSize(volId, fatPath)
+                if (doc.findFile(name) != null) return 0
+                val outDoc = doc.createFile(MimeTypeHelper.getMimeType(name), name) ?: return 0
+                var complete = false
                 return try {
-                    val ok = ContainerFileSystem.extractToFile(volId, fatPath, tempFile.absolutePath, opId)
-                    var written = 0
-                    if (ok && tempFile.exists()) {
-                        val fileSize = tempFile.length()
-                        doc.findFile(name)?.delete()
-                        val outDoc = doc.createFile(MimeTypeHelper.getMimeType(name), name)
-                        if (outDoc != null) {
-                            activity.contentResolver.openOutputStream(outDoc.uri)?.use { out ->
-                                tempFile.inputStream().use { it.copyTo(out) }
-                            }
-                            written = 1
-                        }
-                        if (opId > 0) {
-                            val transferred = transferredCounter.addAndGet(fileSize)
-                            val done = doneCounter.incrementAndGet()
-                            ExportProgressBridge.reportProgress(opId, done, total, name, transferred, totalBytes)
-                        }
+                    val output = activity.contentResolver.openOutputStream(outDoc.uri, "wt")
+                        ?: throw java.io.IOException("Export destination unavailable")
+                    output.use { streamExport(volId, fatPath, size, it, opId) }
+                    if (opId > 0) {
+                        val transferred = transferredCounter.addAndGet(size)
+                        val done = doneCounter.incrementAndGet()
+                        ExportProgressBridge.reportProgress(opId, done, total, name, transferred, totalBytes)
                     }
-                    written
-                } catch (_: Exception) { 0 } finally {
-                    SecureFileWipe.secureDeleteFile(tempFile)
+                    complete = true
+                    1
+                } finally {
+                    if (!complete) runCatching { outDoc.delete() }
                 }
             }
         }
@@ -1204,21 +1222,11 @@ class ImportExportHandlers(
                         val ok = ContainerFileSystem.extractToFile(pending.volId, pending.sourcePath, rawDest.absolutePath)
                         activity.runOnUiThread { res.success(ok && rawDest.exists()) }
                     } else {
-                        val tempFile = File(activity.cacheDir, "export_${System.nanoTime()}")
-                        try {
-                            val ok = ContainerFileSystem.extractToFile(pending.volId, pending.sourcePath, tempFile.absolutePath)
-
-                            if (ok && tempFile.exists()) {
-                                activity.contentResolver.openOutputStream(destUri)?.use { out ->
-                                    tempFile.inputStream().use { it.copyTo(out) }
-                                }
-                                activity.runOnUiThread { res.success(true) }
-                            } else {
-                                activity.runOnUiThread { res.success(false) }
-                            }
-                        } finally {
-                            SecureFileWipe.secureDeleteFile(tempFile)
-                        }
+                        val size = exportSourceSize(pending.volId, pending.sourcePath)
+                        val output = activity.contentResolver.openOutputStream(destUri, "wt")
+                            ?: throw java.io.IOException("Export destination unavailable")
+                        output.use { streamExport(pending.volId, pending.sourcePath, size, it) }
+                        activity.runOnUiThread { res.success(true) }
                     }
                 } catch (e: Exception) {
                     activity.runOnUiThread { nativeOps.dispatchNativeError(e, res) }

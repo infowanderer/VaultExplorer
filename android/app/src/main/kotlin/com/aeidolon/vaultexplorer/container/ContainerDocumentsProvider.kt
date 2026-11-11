@@ -16,14 +16,14 @@ import android.os.ParcelFileDescriptor
 import android.os.storage.StorageManager
 import android.provider.DocumentsContract
 import android.provider.DocumentsProvider
-import java.io.File
 import java.io.FileNotFoundException
 import kotlin.concurrent.withLock
 import com.aeidolon.vaultexplorer.bridge.UsbBlockBridge
 import com.aeidolon.vaultexplorer.DirEntryWire
 import com.aeidolon.vaultexplorer.DocumentId
 import com.aeidolon.vaultexplorer.MimeTypeHelper
-import com.aeidolon.vaultexplorer.SecureFileWipe
+import com.aeidolon.vaultexplorer.ImageDecodeGuard
+import com.aeidolon.vaultexplorer.privacy.VaultReadInputStream
 import com.aeidolon.vaultexplorer.UriNameResolver
 import com.aeidolon.vaultexplorer.VeLog
 
@@ -647,7 +647,7 @@ class ContainerDocumentsProvider : DocumentsProvider() {
                     bmp.recycle()
                 }
             } catch (e: Exception) {
-                VeLog.w(TAG, e) { "openDocumentThumbnail pipeline error for $fatPath: ${e.message}" }
+                VeLog.w(TAG) { "Document thumbnail could not be generated" }
                 runCatching { writeEnd.close() }
             }
         }
@@ -655,43 +655,38 @@ class ContainerDocumentsProvider : DocumentsProvider() {
         return AssetFileDescriptor(readEnd, 0, AssetFileDescriptor.UNKNOWN_LENGTH)
     }
 
-    private val THUMBNAIL_MEMORY_THRESHOLD_BYTES = 32L * 1024 * 1024
-
+    // Decode through bounded vault streams, including large images. Never stage
+    // a decrypted source in cache, regardless of the Dart thumbnail-cache mode.
     private fun decodeThumbnailSource(volId: Int, fatPath: String, sizeHint: Point?): Bitmap? {
-        val reqW = sizeHint?.x ?: 256
-        val reqH = sizeHint?.y ?: 256
-
+        val reqW = (sizeHint?.x ?: 256).coerceIn(64, 2048)
+        val reqH = (sizeHint?.y ?: 256).coerceIn(64, 2048)
         val displayName = fatPath.substringAfterLast("/")
         val mimeType = MimeTypeHelper.getMimeType(displayName) ?: "application/octet-stream"
-
         if (mimeType.startsWith("video/")) {
             return decodeVideoThumbnailSource(volId, fatPath, reqW, reqH)
         }
-
+        val ctx = context ?: return null
         val size = ContainerFileSystem.getFileSize(volId, fatPath)
-        if (size in 1..THUMBNAIL_MEMORY_THRESHOLD_BYTES) {
-            val bytes = readWholeFileInMemory(volId, fatPath, size) ?: return null
-            val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
-            if (opts.outWidth <= 0 || opts.outHeight <= 0) return null
-            opts.inSampleSize       = calculateInSampleSize(opts, reqW, reqH)
-            opts.inJustDecodeBounds = false
-            return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
-        }
-
-        val tempFile = File(context?.cacheDir, "thumb_${System.nanoTime()}")
+        if (size <= 0) return null // Unknown size is not permission to extract to disk.
+        fun source() = VaultReadInputStream(size,
+            { offset, length -> ContainerFileSystem.readFileChunk(volId, fatPath, offset, length) })
         try {
-            val ok = ContainerFileSystem.extractToFile(volId, fatPath, tempFile.absolutePath)
-            if (!ok || !tempFile.exists()) return null
-
             val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeFile(tempFile.absolutePath, opts)
+            source().use { BitmapFactory.decodeStream(it, null, opts) }
             if (opts.outWidth <= 0 || opts.outHeight <= 0) return null
-            opts.inSampleSize       = calculateInSampleSize(opts, reqW, reqH)
-            opts.inJustDecodeBounds = false
-            return BitmapFactory.decodeFile(tempFile.absolutePath, opts)
-        } finally {
-            SecureFileWipe.secureDeleteFile(tempFile)
+            val header = ContainerFileSystem.readFileChunk(volId, fatPath, 0,
+                minOf(size, ImageDecodeGuard.HEADER_SNIFF_BYTES.toLong()).toInt())
+            val permit = try { ImageDecodeGuard.admit(ctx, opts.outWidth, opts.outHeight, header) }
+                finally { header?.fill(0) }
+            permit.use {
+                opts.inSampleSize = calculateInSampleSize(opts, reqW, reqH)
+                opts.inJustDecodeBounds = false
+                return source().use { BitmapFactory.decodeStream(it, null, opts) }
+            }
+        } catch (_: ImageDecodeGuard.RefusedException) {
+            return null // Placeholder rather than a disk fallback.
+        } catch (_: OutOfMemoryError) {
+            return null
         }
     }
 
@@ -751,7 +746,7 @@ class ContainerDocumentsProvider : DocumentsProvider() {
                 return frame?.let { VideoThumbnailCoordinator.scaledToFit(it, maxEdge) }
             } catch (e: Exception) {
                 if (VideoThumbnailCoordinator.isCodecResourceError(e)) {
-                    VeLog.w(TAG) { "SAF video thumbnail hit codec resource limit for $fatPath: ${e.message}" }
+                    VeLog.w(TAG) { "Document video thumbnail hit codec resource limit" }
                 }
                 return null
             } finally {
@@ -760,21 +755,6 @@ class ContainerDocumentsProvider : DocumentsProvider() {
         } finally {
             VideoThumbnailCoordinator.videoDecoderLock.unlock()
         }
-    }
-
-    private val THUMBNAIL_READ_CHUNK_BYTES = 4 * 1024 * 1024
-
-    private fun readWholeFileInMemory(volId: Int, fatPath: String, size: Long): ByteArray? {
-        val out = java.io.ByteArrayOutputStream(size.toInt())
-        var offset = 0L
-        while (offset < size) {
-            val len = minOf(THUMBNAIL_READ_CHUNK_BYTES.toLong(), size - offset).toInt()
-            val chunk = ContainerFileSystem.readFileChunk(volId, fatPath, offset, len) ?: return null
-            if (chunk.isEmpty()) return null
-            out.write(chunk)
-            offset += chunk.size
-        }
-        return out.toByteArray()
     }
 
     private fun calculateInSampleSize(
