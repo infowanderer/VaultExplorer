@@ -94,7 +94,7 @@ Flutter startup initially triggered its cloud build-machine metadata probe and w
 blocked by automatic review. Inspection of the pinned `bot_detector.dart` showed
 CI mode bypasses that probe. CI=true and FLUTTER_SUPPRESS_ANALYTICS=true permitted
 startup with no need for credentials or broader permission. Tool reports Dart
-3.13.2. Android SDK/NDK and tablet hardware have not been provisioned here.
+3.13.2. SDK/NDK provisioning followed later (see the build investigation below); tablet hardware is unavailable here.
 
 Commands for reproducing focused tests:
 
@@ -149,5 +149,21 @@ https://developer.android.com/about/versions/17/setup-sdk
 
 A refreshed official SDK feed provides platform 37.0. SDK/build-tools and NDK
 archives have been downloaded and checksum-verified for build validation. No SDK
-downgrade or fake platform installation was used. Build configuration has not yet
-been validated by producing an APK; device tests remain outstanding.
+downgrade was used. The pinned native Flutter plugins also require platforms 35
+and 36; these are separate compile dependencies, not changes to the app's target.
+
+For the development VM, provision JDK 21, SDK platforms 35/36/37.0, Build-Tools
+36.0.0/37.0.0, NDK 28.2.13676358 and CMake 3.22.1. Use the pinned Flutter submodule
+and Gradle 9.4.1 wrapper. After dependency setup, the focused Android integration
+check is `cd android && ./gradlew :app:compileDebugKotlin`; privacy JVM coverage is
+`./gradlew :app:testDebugUnitTest --tests 'com.aeidolon.vaultexplorer.privacy.*'`.
+`:app:compileDebugKotlin` passed in this workspace, including the Flutter/Dart
+Android assembly task and all application Kotlin sources. NDK ARM64/API-26 syntax
+checks passed for the changed CryFS translation unit and RAM-scratch test source.
+The focused Android Gradle privacy test task also passes all 15 tests with zero
+failures/errors/skips. The full Flutter suite passes all 3,811 tests. A dedicated
+CI job now checks the reviewed plaintext staging boundaries and host RAM-scratch
+behavior; no remote CI execution result is claimed.
+
+These checks do not package or install an APK, complete the native link, or test
+on a tablet. Device tests remain outstanding.

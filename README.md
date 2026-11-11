@@ -77,7 +77,7 @@ hardening. The upstream release APKs linked below do **not** contain these chang
 Scratch-dependent archive, recording and edit-export workflows are intentionally
 blocked. Review [the privacy report](docs/media-organizer/PLAINTEXT-WRITES.md) for
 metadata migration, limitations and checks before using a development build.
-Android integration compilation and tablet testing are still required.
+Full native linking, APK packaging and tablet testing are still required.
 
 ## Security & privacy
 
@@ -106,7 +106,7 @@ cd VaultExplorer
 .flutter/bin/flutter build apk --release
 ```
 
-Flutter is vendored as a pinned git submodule (`.flutter/`). If you cloned without `--recurse-submodules`, run `git submodule update --init`. Requirements: Android SDK 26+, Java 21, and CMake 3.18+. Gradle installs the NDK (r28c), and CMake builds the native C++ dependencies. Versions and licenses: [NOTICE.md](NOTICE.md).
+Flutter is vendored as a pinned git submodule (`.flutter/`). If you cloned without `--recurse-submodules`, run `git submodule update --init`. Build requirements: Android SDK Platform 37.0, Build-Tools 37.0.0, Java 21, and CMake 3.18+. API 26 is the minimum device version, not the compile SDK. Gradle installs the NDK (r28c), and CMake builds the native C++ dependencies. Versions and licenses: [NOTICE.md](NOTICE.md).
 
 ## Donate
 

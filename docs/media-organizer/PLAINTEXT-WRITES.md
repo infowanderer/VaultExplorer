@@ -118,27 +118,38 @@ already been rebuilt with full functionality.
   buffer clearing, short reads, mark/reset, skip, cancellation, output/flush failure,
   empty input, closed streams, invalid ranges, encrypted-destination chunking,
   failed import writes/finalization and denial before scratch creation. Compiled with official Kotlin
-  2.3.20 and run with JUnit 4.13.2 on the available Java runtime.
+  2.3.20 and run with JUnit 4.13.2 on the available Java runtime. The same
+  **15 tests also pass through the real Android Gradle task**
+  `:app:testDebugUnitTest --tests 'com.aeidolon.vaultexplorer.privacy.*'`
+  (0 failures/errors/skips). These remain JVM tests, not device instrumentation.
 - 8 structural privacy guards pass (`python3 tool/privacy/no_staging_test.py`):
   no temp/cache/extract fallback in document provider, no cache staging in export
   handlers, no filesystem dependency in the stream helper, and no plaintext writer
   in the four migrated metadata services. These checks are not
-  device-level I/O tracing or proof about indirect calls.
+  device-level I/O tracing or proof about indirect calls. A dedicated CI job now
+  runs these guards and the standalone host RAM-scratch checks, without needing
+  Android or Flutter setup. Local commands pass; no remote CI result is claimed.
 - Host C++ tests pass for anonymous RAM descriptors, CLOEXEC, read/write bounds,
   per-file and aggregate limits, and descriptor/budget cleanup. The modified
-  `fv_cryfs_vault.cpp` passes host C++20 syntax checking.
-- Final full Flutter run: **3,810 passed, 1 failed**. The failure is
-  `media_viewer_lock_action_test.dart` (default toolbar round-trip expects the lock
-  action in the top bar). Running that test against the untouched original
-  `fbabd06` baseline reproduces the same failure: 9 pass, 1 fails. The privacy and
-  metadata regressions pass. Production metadata sources have no analyzer issues;
-  expanded test analysis reports one pre-existing super-parameter suggestion.
+  `fv_cryfs_vault.cpp` passes host C++20 syntax checking. With the actual NDK
+  28.2.13676358 compiler, both the helper test source and CryFS translation unit
+  also pass ARM64/API-26 syntax checking. This does not execute them on Android.
+- Final full Flutter run: **3,811 tests pass**. The initial run found one stale
+  toolbar round-trip test, also reproduced against untouched baseline `fbabd06`.
+  Its old top-bar expectation contradicted the current default and adjacent tests
+  placing that button in More. The corrected test checks that both placements
+  survive a round-trip; no production viewer behavior changed. Production metadata
+  sources have no analyzer issues; expanded test analysis reports one pre-existing
+  super-parameter suggestion.
 - `git diff --check` and `scripts/check_code_boundaries.py` pass.
 - 14 metadata-store contract tests and 4 external-storage repository tests pass,
   plus catalog-corruption, migration, bookmark, recent-file and dashboard regression
   coverage. These use fake native storage; they do not test Keystore cryptography.
-- Full Android integration compilation, bitmap codec tests, document-provider
-  tests and Tab S8 Ultra I/O tracing have not run. No APK has been produced.
+- Android `:app:compileDebugKotlin` passes with the real SDK, AGP, Flutter
+  dependencies and all app Kotlin sources. The same task compiled the app's
+  Flutter/Dart Android code. This is not a full native link or APK packaging check.
+  Bitmap codec tests, document-provider integration tests and Tab S8 Ultra I/O
+  tracing have not run. No APK has been produced.
   Official SDK platform 37.0, build-tools 37.0.0 and NDK 28.2.13676358 were
   retrieved and checksum-verified during toolchain provisioning. Their presence
   does not establish a successful Android integration build. Original SDK pins
