@@ -9,11 +9,13 @@ class OrganizerActionButton extends StatelessWidget {
     required this.icon,
     required this.showLabel,
     required this.onPressed,
+    this.foregroundColor,
   });
   final String label, tooltip;
   final Widget icon;
   final bool showLabel;
   final VoidCallback? onPressed;
+  final Color? foregroundColor;
 
   @override
   Widget build(BuildContext context) => Tooltip(
@@ -24,11 +26,15 @@ class OrganizerActionButton extends StatelessWidget {
     child: showLabel
         ? TextButton.icon(
             onPressed: onPressed,
-            style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+            style: TextButton.styleFrom(
+              minimumSize: const Size(48, 48),
+              foregroundColor: foregroundColor,
+            ),
             icon: icon,
             label: Text(label),
           )
         : IconButton(
+            color: foregroundColor,
             onPressed: onPressed,
             constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
             icon: icon,

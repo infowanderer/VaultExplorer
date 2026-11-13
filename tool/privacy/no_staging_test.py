@@ -58,6 +58,7 @@ class NoStagingTests(unittest.TestCase):
                      'lib/data/services/external_storage_repository.dart',
                      'lib/data/services/discrete_mode_repository.dart',
                      'lib/features/photo_sorter/organizer.dart',
+                     'lib/features/photo_sorter/organizer_catalog.dart',
                      'lib/features/decoy/local/decoy_local_marks_service.dart'):
             source = (ROOT / path).read_text()
             self.assertIn('SecureMetadataStore', source)

@@ -48,8 +48,10 @@ void main() {
       await tester.tap(find.text('Open sorter'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
+      await tester.tap(find.byTooltip('Search filename or tag'));
+      await tester.pumpAndSettle();
       expect(find.byType(host.TextField), findsOneWidget);
-      expect(find.text('Choose your first destination folder'), findsOneWidget);
+
       expect(find.byType(host.GridView), findsOneWidget);
       expect(find.text('a.jpg'), findsOneWidget);
       expect(find.byTooltip('Back'), findsOneWidget);

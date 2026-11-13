@@ -134,34 +134,15 @@ class OrganizerQueueDialog extends StatelessWidget {
             FilledButton.tonal(
               onPressed: controller.state.decisions.isEmpty
                   ? null
-                  : () => controller.prepare(),
-              child: const Text('Check & preview'),
+                  : () async {
+                      if (await controller.prepare()) await controller.commit();
+                    },
+              child: const Text('Run queue'),
             ),
           if (!controller.running && ready)
             FilledButton(
-              onPressed: () async {
-                final confirmed = await showDialog<bool>(
-                  context: context,
-                  builder: (dialog) => AlertDialog(
-                    title: const Text('Commit these operations?'),
-                    content: Text(
-                      '${controller.state.decisions.length} staged files will be copied or moved to the destinations shown. Moves retain originals in recoverable Trash. Existing names are refused. Partial copies are retained for recovery.',
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(dialog, false),
-                        child: const Text('Back'),
-                      ),
-                      FilledButton(
-                        onPressed: () => Navigator.pop(dialog, true),
-                        child: const Text('Commit'),
-                      ),
-                    ],
-                  ),
-                );
-                if (confirmed == true) await controller.commit();
-              },
-              child: const Text('Commit…'),
+              onPressed: controller.commit,
+              child: const Text('Run queue'),
             ),
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -204,15 +185,8 @@ class _JobTile extends StatelessWidget {
           ? null
           : canResume
           ? TextButton(
-              onPressed: () async {
-                final confirmed = await _confirm(
-                  context,
-                  'Resume this operation?',
-                  'The source, recorded output identity and content will be checked again. Partial outputs are never overwritten if they were modified.',
-                );
-                if (confirmed) await controller.runJobs([job['id'] as String]);
-              },
-              child: const Text('Resume…'),
+              onPressed: () => controller.runJobs([job['id'] as String]),
+              child: const Text('Resume'),
             )
           : ['needsReview', 'creating', 'undoing'].contains(job['state'])
           ? TextButton(
@@ -221,43 +195,12 @@ class _JobTile extends StatelessWidget {
             )
           : job['state'] == 'complete' && job['undoSupported'] == true
           ? TextButton(
-              onPressed: () async {
-                final confirmed = await _confirm(
-                  context,
-                  'Undo this transfer?',
-                  'An occupied original name or changed output will refuse undo. The sorted copy is retained in destination-side Trash. Nothing is permanently deleted.',
-                );
-                if (confirmed) await controller.undo(job['id'] as String);
-              },
-              child: const Text('Undo…'),
+              onPressed: () => controller.undo(job['id'] as String),
+              child: const Text('Undo'),
             )
           : null,
     );
   }
-
-  Future<bool> _confirm(
-    BuildContext context,
-    String title,
-    String message,
-  ) async =>
-      await showDialog<bool>(
-        context: context,
-        builder: (dialog) => AlertDialog(
-          title: Text(title),
-          content: Text(message),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialog, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialog, true),
-              child: const Text('Continue'),
-            ),
-          ],
-        ),
-      ) ==
-      true;
 }
 
 class PhotoReviewDialog extends StatefulWidget {

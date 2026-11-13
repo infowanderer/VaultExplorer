@@ -7,6 +7,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:vaultexplorer/features/photo_sorter/photo_sorter_screen.dart';
 
 void main() {
+  Future<void> firstDestination(WidgetTester tester) async {
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.digit1);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+    await tester.pumpAndSettle();
+  }
+
   testWidgets(
     'Escape returns directly to gallery; staged decisions require confirmation',
     (tester) async {
@@ -41,7 +48,7 @@ void main() {
       expect(find.byType(PhotoSorterScreen), findsNothing);
       await tester.tap(find.text('Gallery'));
       await tester.pumpAndSettle();
-      await tester.sendKeyEvent(LogicalKeyboardKey.digit1);
+      await firstDestination(tester);
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
       expect(find.text('Discard staged decisions?'), findsOneWidget);
@@ -118,7 +125,8 @@ void main() {
     tester,
   ) async {
     await open(tester);
-    await tester.sendKeyEvent(LogicalKeyboardKey.digit1);
+    await firstDestination(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
     await tester.pumpAndSettle();
     expect(find.text('2 / 3'), findsOneWidget);
     await tester.tap(find.byTooltip('Preview queue'));
@@ -131,11 +139,11 @@ void main() {
     await open(tester);
     await tester.tap(find.text('c.jpg'));
     await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('3 / 3'), findsOneWidget);
-    await tester.tap(find.text('View'));
+    await tester.tap(find.byTooltip('Enlarge current photo (Space)'));
     await tester.pumpAndSettle();
+    expect(find.text('3 / 3'), findsOneWidget);
     expect(find.byType(InteractiveViewer), findsOneWidget);
-    await tester.tap(find.text('Grid'));
+    await tester.tap(find.byTooltip('Show thumbnail grid (Space)'));
     await tester.pumpAndSettle();
     expect(find.byType(GridView), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -144,6 +152,8 @@ void main() {
     await open(tester);
     await tester.tap(find.text('b.jpg'), kind: PointerDeviceKind.stylus);
     await tester.pump(const Duration(milliseconds: 400));
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pumpAndSettle();
     expect(find.text('2 / 3'), findsOneWidget);
   });
   testWidgets('leaving foreground hides photos until screen is reopened', (

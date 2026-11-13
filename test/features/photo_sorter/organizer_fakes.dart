@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:vaultexplorer/data/services/app_secure_storage.dart';
 import 'package:vaultexplorer/data/services/secure_metadata_store.dart';
 import 'package:vaultexplorer/features/photo_sorter/organizer.dart';
+import 'package:vaultexplorer/features/photo_sorter/organizer_catalog.dart';
 
 class ProtectedMemory extends AppSecureStorage {
   final records = <String, String>{};
@@ -38,6 +39,7 @@ class FixtureBridge extends OrganizerBridge {
       undos = 0,
       cancellations = 0;
   bool refusePreparation = false, refuseInspection = false;
+  int fingerprintReads = 0, referencePreviews = 0;
   final versionsByPath = <String, Map<String, dynamic>>{};
   final hashesByPath = <String, String>{};
   Completer<Map<String, dynamic>>? executeGate;
@@ -54,10 +56,23 @@ class FixtureBridge extends OrganizerBridge {
   }
 
   @override
-  Future<Map<String, dynamic>> fingerprint(String root, String path) async => {
-    ...(versionsByPath[path] ?? version),
-    'sha256': hashesByPath[path] ?? '${"a" * 64}',
-  };
+  Future<Map<String, dynamic>> fingerprint(String root, String path) async {
+    fingerprintReads++;
+    return {
+      ...(versionsByPath[path] ?? version),
+      'sha256': hashesByPath[path] ?? 'a' * 64,
+    };
+  }
+
+  @override
+  Future<Uint8List?> referenceThumbnail(
+    MediaReference reference, {
+    int size = 300,
+  }) async {
+    referencePreviews++;
+    return null;
+  }
+
   @override
   Future<List<Map<String, dynamic>>> history() async =>
       rows.map((row) => Map<String, dynamic>.from(row)).toList();

@@ -1,3 +1,5 @@
+import 'package:vaultexplorer/features/photo_sorter/media_organization_host.dart';
+import 'package:vaultexplorer/features/photo_sorter/organizer_destination_picker.dart';
 import 'package:vaultexplorer/features/photo_sorter/photo_sorter_screen.dart';
 import 'package:vaultexplorer/features/photo_sorter/organizer.dart';
 import 'dart:async';
@@ -5813,15 +5815,43 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
     // Every file/folder tile, and the bookmark bar, below this point reads the
     // user's chosen skin from here. Kept as a thin wrapper so the (very
     // large) screen body itself is untouched.
+    ref.watch(fileBrowserSelectionProvider(_stateKey));
+    bool isMedia(RawEntry entry) => !entry.isDir &&
+        (fileKindOf(entry.name) == FileKind.image ||
+            fileKindOf(entry.name) == FileKind.video);
+    String? mediaPath(RawEntry entry) =>
+        organizationPath(widget.container.uri, _joinPath(entry.name));
+    final mediaSelection = selectedItems.where(isMedia)
+        .map(mediaPath).whereType<String>().toList();
     final skinTokens = Theme.of(context).extension<AppSkinTokens>();
-    return FileManagerSkinScope(
-      skin: skinTokens == null
-          ? _toolbarConfig.skin
-          : skinTokens.fileManagerFollowsAppSkin
-          ? skinTokens.fileManagerSkin
+    final browser = FileManagerSkinScope(
+      skin: skinTokens == null ? _toolbarConfig.skin
+          : skinTokens.fileManagerFollowsAppSkin ? skinTokens.fileManagerSkin
           : skinTokens.manualFileManagerSkin,
       child: _buildBrowser(context),
     );
+    if (widget.container.isLocalStorage && _archiveContext == null) {
+      final files = _currentItems.where(isMedia)
+          .map(mediaPath).whereType<String>().toList();
+      final sameFolder = mediaSelection.isEmpty || mediaSelection.every(
+        (path) => organizationFolder(path) == organizationFolder(mediaSelection.first));
+      return MediaOrganizationHost(
+        root: widget.container.uri,
+        folder: mediaSelection.isNotEmpty
+            ? organizationFolder(mediaSelection.first) : _currentDirPath,
+        files: files,
+        selected: sameFolder ? mediaSelection : const [],
+        enabled: _isActiveTab,
+        bridge: OrganizerBridge(ref.read(vaultEngineChannelProvider)),
+        pickDestination: (bridge) => pickOrganizerDestination(
+          context, ref.read(vaultLifecycleApiProvider), bridge),
+        builder: (_, model, controls) => Column(children: [
+          Expanded(child: browser),
+          if (mediaSelection.isNotEmpty && sameFolder) controls,
+        ]),
+      );
+    }
+    return browser;
   }
 
   Widget _buildBrowser(BuildContext context) {

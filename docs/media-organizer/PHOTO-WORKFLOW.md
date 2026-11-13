@@ -1,4 +1,4 @@
-# Protected photo workflow — Android checkpoint 61
+# Protected media workflow — Android checkpoint 61, compact UI revision
 
 This is the first write-enabled organizer build, following the read-only tablet
 preview. Start with disposable photographs before using a valuable collection.
@@ -7,17 +7,26 @@ storage-provider behavior and performance still need the hardware checks below.
 
 ## Use it
 
-1. Open a local, SD or USB folder and choose **Sort photos** in the browser toolbar.
-2. Add named destination folders with the destination deck's folder button. Copy
-   is the default. Tap a destination or press its number to stage the current image.
-3. Use the review button to set Keep, Sort later, Delete candidate, stars and tags.
-   Long press thumbnails for batch reviews. Search and review/rating filters narrow
-   the grid. Delete candidate is metadata, not a deletion command.
-4. Open the queue, check destinations and optional output names, then prepare the
-   preview. Preparation fingerprints sources; **Commit** requires a second explicit
-   confirmation. A destination badge is a staged decision, never proof of transfer.
-5. History shows progress, recorded locations, Resume, Verify recovery and guarded
-   Undo. Escape returns to the gallery with the protected session retained.
+1. Open a local, SD or USB folder. Select media in the main gallery (long press),
+   open an image/video, or choose **Sort photos** for a focused photo grid.
+2. **Stars, Sort and Tags** appear together. **1–5** sets the selected image/video's
+   rating; **T** edits tags without changing its rating or review state. Batch tag
+   edits explicitly replace the selected files' tags. Text fields keep their keys.
+3. **S / Sort** opens destinations: add a named folder, choose Copy (default) or
+   Move, and choose the destination. **Alt+1–9** stages a copy to a saved folder.
+   Photo sort mode advances after staging. A badge means planned, not transferred.
+4. Open **Queue**, inspect paths and output names, and choose **Run queue**. This
+   prepares and verifies the transfer, then runs it without an extra confirmation.
+   Collisions and source changes still stop the operation. Resume and Undo act
+   directly and retain their filesystem checks. No transfer runs merely by staging.
+5. Photo sorter's **More** menu holds filters, review states/details (**R**), batch
+   rename, collections/saved searches, rename reconciliation and Preferences.
+   Delete candidate is metadata. Escape returns to the gallery with decisions saved.
+
+The inherited browser/viewer **Delete** action permanently deletes. **More →
+Preferences → Confirm permanent deletion** makes its confirmation optional (on by
+default). This is distinct from organizer moves' recoverable Trash. Unreadable
+protected preferences refuse deletion rather than assume prompting was disabled.
 
 Previous arrow, mouse wheel, Ctrl zoom/seek, Escape slideshow/video and touch
 controls remain. Backgrounding hides the sorter, cancels queued/active work and
@@ -27,13 +36,29 @@ when reopening that folder; no library import is required.
 
 ### Button help and labels
 
-The **Labels** button in the top bar switches toolbar and photo-navigation
+The **More → Preferences → Button labels** switch changes organization
 buttons between icons with labels and icons alone. Labels start enabled; the
 choice is saved in the protected app preferences and follows you between folders.
 Destination names remain visible in either mode. Hover over a toolbar/navigation
 button with the mouse, or long press it with touch or pen, to show its tooltip.
 Long pressing a toolbar button shows help without activating its action.
-The action toolbar wraps onto additional rows in narrow or split-screen windows.
+The small action strip wraps in narrow or split-screen windows. Advanced actions
+remain secondary. The gallery refreshes saved reviews after returning from a
+viewer; it does not overwrite newer session revisions from another window.
+
+### Rename and collections
+
+**Batch rename** previews up to 200 filenames, using `{name}`, `{ext}`,
+`{counter:03}` and `{modified:yyyyMMdd}` (UTC modification date, not EXIF capture
+date). Counter start/step and destination are configurable. Renamed copies are
+the default; raw-path moves retain originals. Duplicate/unsafe names and sources
+changed since preview are refused. Staging does not execute the rename.
+
+**Collections and saved searches** keep references without moving media. Static
+collections capture identity/content; dynamic searches cover protected reviews in
+previously opened folders, not an automatic disk-wide library. Results currently
+provide a read-only photo preview. Changed/unavailable references are reported,
+not rebound by name. At most two collection previews inspect media concurrently.
 
 ## File safety
 
@@ -101,11 +126,19 @@ stops the operation; it does not silently receive a weaker durability guarantee.
 Current metadata is a bounded protected record per folder, not a scalable SQLite
 tag catalog: at most 9 destinations, 200 staged decisions, 128 folder sessions,
 256 KiB per folder record, and 2,000 journal plans. Limits refuse additional data
-without evicting existing data. Large catalogs need a versioned encrypted SQLite
-implementation before these limits are raised. New serialized state is schema 1;
-future changes must migrate or explicitly refuse incompatible versions.
+without evicting existing data. Collections allow 32 groups, 500 members per group,
+1,000 total references and the same 256 KiB record bound. Large catalogs need a
+versioned encrypted SQLite implementation before limits are raised. Sessions read
+schema 1 and write schema 2; earlier APKs refuse schema 2 rather than erase it.
 
-Identity tracking currently follows a rename **within the opened folder** only
+Quick ratings/tags inspect filesystem identity, size and modification time rather
+than hashing a large video. These are metadata-bound reviews, not proof of equal
+content; same-size/time in-place edits can evade that lightweight check. Such
+reviews never auto-relocate. Transfer preparation obtains a full content binding.
+Replacing a path archives the earlier review as an explicit candidate, visible
+under **More → Earlier file reviews**; limits refuse edits rather than discard it.
+
+Strong identity tracking follows a rename **within the opened folder** only
 when filesystem identity and full SHA-256 both match uniquely. Changed files and
 ambiguous/hard-link/hash-only matches remain unresolved review candidates. Saving
 a candidate review explicitly reapplies it to the current file. Verified app
@@ -118,21 +151,25 @@ changes. Strong matching is kept separate from uncertain suggestions.
 | ID | This checkpoint | Remaining |
 | --- | --- | --- |
 | F01 | Named destination deck, shortcuts, persistent folders | Fuzzy routing, presets, inline folder creation |
-| F02 / A02 | Explicit preview/commit, serial progress, cancellation, journal, guarded recovery/undo | Durable background scheduling and provider-specific capabilities |
+| F02 / A02 | Visible queue + Run queue, serial progress, cancellation, journal, guarded recovery/undo | Durable background scheduling and provider-specific capabilities |
 | F03 / A08 | Review states, stars, filters, folder session restoration | Larger catalog/session management |
 | F04 | Protected tags, suggestions, batch editing, text filtering | SQLite tag catalog, xattr/filename export |
-| F08 | Individual staged output rename with collision checks | Metadata templates, counters and full batch rename workflow |
+| F08 | Batch templates/counters/UTC modification date, previews, collision/source checks, combined routing | EXIF capture-date templates and larger batches |
+| F09 | Protected static photo collections, saved review searches and read-only result previews | Scalable catalog, full media playback/actions within collections |
 | A01 / A07 | Scoped strong identity tracking and storage-specific transfer policy | Cross-folder relocation reconciliation, unavailable device tracking |
 | F05 / F06 / F11 / F12 | Existing video viewer only | Contact sheets, safe clip extraction, scene sampling and storyboard wall |
-| F07 / F09 / F10 / F13 / F14 | Not implemented by this checkpoint | Duplicate duel, virtual collections, rules/CLI, tag views, sync/backup |
+| F07 / F10 / F13 / F14 | Not implemented by this checkpoint | Duplicate duel, rules/CLI, tag views, sync/backup |
 | A03 / A04 / A05 / A06 | Existing host capabilities only | Organizer edit decisions, command palette/remapping/scripts, metadata inspector and persistent jobs |
 
 ## Build and validation
 
 Use Java 21, the pinned `.flutter` submodule, and the Android SDK/NDK versions in
 the repository. Follow [TABLET-PREVIEW.md](TABLET-PREVIEW.md) for the full ARM64
-release build and signing checks. Version `1.50.0+61` includes native Kotlin/JNI
-changes: **do not use the old Dart-only APK update script** for this checkpoint.
+release build and signing checks. The original `1.50.0+61` needed a full native
+build. The guarded Dart updater now pins that exact full build, verifies native
+sources/engine payloads and preserves its Android/native entries byte-for-byte.
+It must refuse any future native-source or dependency change. See the build
+receipt for actual validation and artifact provenance of this UI revision.
 An upgrade must use the same preview package and signing certificate; no uninstall
 is needed. An unsigned build is not an installable release.
 

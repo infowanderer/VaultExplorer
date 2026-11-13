@@ -1,6 +1,45 @@
 # Photo workflow checkpoint 61 — build receipt
 
-## Sorter UI follow-up
+## Compact gallery and viewer revision
+
+The shared stars/Sort/Tags strip now serves selected local/SD/USB images and
+videos in the main gallery and media viewer, plus the focused photo sorter.
+Keys 1–5 rate, S opens sorting, T edits tags and Alt+1–9 stages destination
+copies. Text fields, modal routes, inactive tabs and locked viewer controls keep
+their input boundaries. Gallery reviews reload after returning from a viewer.
+Advanced tools move to More; labels remain optional and hover/long-press help
+remains available. Queue Run/Resume/Undo have no extra confirmation dialog;
+permanent browser/viewer deletion has a separate protected, default-on setting.
+
+This revision also adds previewed batch rename templates/counters and protected
+photo collections/saved review searches. All metadata uses the existing protected
+store. Quick review edits use identity/size/mtime and cannot auto-relocate without
+full content verification. Replaced-file reviews remain explicit candidates.
+See PHOTO-WORKFLOW.md for limits, schema migration and storage restrictions.
+
+- Full Flutter suite: **3,894 passed**, no failures. Focused organizer and gallery
+  persistence suite: **79 passed**. Preview identity: **4 passed**.
+- A pre-existing gallery-index test waited 20 ms for isolate encoding. It now
+  awaits the actual injected persistence completion. The full suite passes with
+  the write/read assertions retained; production cache behavior is unchanged.
+- Analyzer with repository CI flags exits 0: **zero errors**, 63 warnings and
+  403 info diagnostics. This is not a warning-free repository.
+- Twelve structural privacy guards, five APK-checker regression tests, code
+  boundaries and whitespace checks pass. Synthetic wide/narrow renders were
+  inspected; no personal photographs were used or modified.
+- The ARM64 Dart AOT/asset update uses the pinned SDK and the exact full-native
+  checkpoint-61 base. The guarded updater refuses native/dependency changes and
+  retains 916 Android/native entries byte-for-byte. Native/Gradle tests were not
+  rerun for this Dart-only revision; the full-native receipt remains below.
+- Signed APK identity/privacy checks, APK v2/v3 signatures and 16 KiB ZIP
+  alignment pass. The preview package, version code 61 and certificate are
+  unchanged; install over the current preview. Artifact: **29,525,738 bytes**,
+  SHA-256 `4a11933e1f489c65d833aba77f6e7499515450940286659f00cf30e23fe803c6`.
+- The updated one-page cheat sheet was rendered and inspected. No Tab S8 Ultra,
+  DeX, S Pen, USB/SD provider, power-cut, performance or Android I/O-trace pass is
+  claimed. No remote CI pass is claimed.
+
+## Earlier sorter UI follow-up
 
 The UI follow-up fixes the blank sorter by using the same `material_ui` widget,
 theme and localization family as the real host app. A regression test first

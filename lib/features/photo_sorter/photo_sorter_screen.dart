@@ -8,6 +8,11 @@ import 'sort_session.dart';
 import 'organizer.dart';
 import 'organizer_widgets.dart';
 import 'organizer_action_button.dart';
+import 'batch_rename_dialog.dart';
+import 'collections_dialog.dart';
+import 'organizer_catalog.dart';
+import 'media_organization_controls.dart';
+import 'media_organization_shortcuts.dart';
 import '../browser/viewer/media_input.dart';
 
 typedef PhotoPreviewLoader = Future<Uint8List?> Function(String path, int size);
@@ -44,6 +49,7 @@ class _PhotoSorterScreenState extends State<PhotoSorterScreen>
   int minimumRating = 0;
   bool typing = false, moveMode = false;
   bool previewButtonLabels = true;
+  bool searchVisible = false;
   bool get showButtonLabels =>
       organizer?.showButtonLabels ?? previewButtonLabels;
   OrganizerController? get organizer => widget.organizer;
@@ -312,64 +318,287 @@ class _PhotoSorterScreenState extends State<PhotoSorterScreen>
     onPressed: onPressed,
   );
 
-  Widget get toolbar => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 8),
-    child: Wrap(
-      spacing: 4,
-      runSpacing: 4,
-      children: [
-        if (organizer != null)
-          actionButton(
-            label: 'Add destination',
-            tooltip: 'Add destination folder',
-            icon: const Icon(Icons.create_new_folder_outlined),
-            onPressed:
-                organizer!.running ||
-                    organizer!.saving ||
-                    destinations.length >= 9
-                ? null
-                : addDestination,
+  List<String> get currentPaths => selectedPhotos.isEmpty
+      ? [if (session.current != null) session.current!]
+      : selectedPhotos.toList();
+  void sortMedia() {
+    if (organizer == null || currentPaths.isEmpty) return;
+    final next = session
+        .photos[(session.selected + 1).clamp(0, session.photos.length - 1)];
+    unawaited(
+      showMediaSortSheet(
+        context,
+        organizer!,
+        currentPaths,
+        addDestination: addDestination,
+        nextSelected: next,
+      ),
+    );
+  }
+
+  void tagMedia() {
+    if (organizer != null && currentPaths.isNotEmpty) {
+      unawaited(showMediaTagsSheet(context, organizer!, currentPaths));
+    }
+  }
+
+  Future<void> preferences() async {
+    if (organizer == null) return;
+    bool confirm;
+    try {
+      confirm = await organizer!.repository.loadConfirmDeletion();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Protected preferences are unavailable. Previous settings are retained.',
+            ),
           ),
-        if (organizer != null)
-          actionButton(
-            label: 'Review',
-            tooltip: 'Review / rate / tag (R)',
-            icon: const Icon(Icons.sell_outlined),
-            onPressed: editReview,
+        );
+      }
+      return;
+    }
+    String? preferenceError;
+    var savingPreference = false;
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialog) => StatefulBuilder(
+        builder: (context, update) => AlertDialog(
+          title: const Text('Organization preferences'),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SwitchListTile(
+                  title: const Text('Button labels'),
+                  value: showButtonLabels,
+                  onChanged: savingPreference
+                      ? null
+                      : (value) async {
+                          update(() => savingPreference = true);
+                          await organizer!.setButtonLabels(value);
+                          if (context.mounted) {
+                            update(() {
+                              savingPreference = false;
+                              preferenceError = organizer!.error;
+                            });
+                          }
+                        },
+                ),
+                SwitchListTile(
+                  title: const Text('Confirm permanent deletion'),
+                  subtitle: const Text(
+                    'Permanent deletion has no Undo. Organizer moves retain originals in Trash.',
+                  ),
+                  value: confirm,
+                  onChanged: savingPreference
+                      ? null
+                      : (value) async {
+                          update(() => savingPreference = true);
+                          try {
+                            await organizer!.repository.saveConfirmDeletion(
+                              value,
+                            );
+                            if (context.mounted) {
+                              update(() {
+                                confirm = value;
+                                preferenceError = null;
+                              });
+                            }
+                          } catch (_) {
+                            if (context.mounted) {
+                              update(
+                                () => preferenceError =
+                                    'Could not save. Your previous deletion setting is retained.',
+                              );
+                            }
+                          } finally {
+                            if (context.mounted) {
+                              update(() => savingPreference = false);
+                            }
+                          }
+                        },
+                ),
+                if (preferenceError != null)
+                  Text(
+                    preferenceError!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+              ],
+            ),
           ),
-        actionButton(
-          label: 'Queue',
-          tooltip: organizer == null
-              ? 'Preview queue'
-              : 'Operation queue & history',
-          icon: Badge(
-            label: Text('${session.decisions.length}'),
-            child: const Icon(Icons.playlist_add_check),
-          ),
-          onPressed: showQueue,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialog),
+              child: const Text('Done'),
+            ),
+          ],
         ),
-        if (organizer != null)
-          actionButton(
-            label: 'Find renamed',
-            tooltip: 'Verify reviews / find renamed files',
-            icon: const Icon(Icons.find_replace),
-            onPressed:
-                organizer!.running ||
-                    organizer!.saving ||
-                    organizer!.verifyingReviews
-                ? null
-                : organizer!.verifySavedReviews,
+      ),
+    );
+  }
+
+  void previousReviews() {
+    showDialog<void>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Earlier file reviews'),
+        content: SizedBox(
+          width: 480,
+          height: 360,
+          child: ListView(
+            children: [
+              const Text(
+                'These reviews belonged to an earlier file at the same path. They are retained as candidates and are not applied to the replacement.',
+              ),
+              for (final item in organizer!.state.previousReviews)
+                ListTile(
+                  title: Text(item['path'] as String),
+                  subtitle: Text(() {
+                    final note = PhotoReview.fromJson(
+                      Map<String, dynamic>.from(item['review'] as Map),
+                    );
+                    return '${reviewLabel(note.state)} · ${note.rating} stars · ${note.tags.join(', ')}';
+                  }()),
+                ),
+            ],
           ),
-        if (organizer != null && organizer!.reviewWarnings.isNotEmpty)
-          actionButton(
-            label: 'Warnings',
-            tooltip: 'Review identity warnings',
-            icon: const Icon(Icons.warning_amber_outlined),
-            onPressed: () =>
-                showReviewWarnings(context, organizer!, session.current),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialog),
+            child: const Text('Close'),
           ),
+        ],
+      ),
+    );
+  }
+
+  void filterMedia() {
+    showDialog<void>(
+      context: context,
+      builder: (dialog) => StatefulBuilder(
+        builder: (context, update) => AlertDialog(
+          title: const Text('Filter media'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButton<ReviewState?>(
+                isExpanded: true,
+                value: stateFilter,
+                items: [
+                  const DropdownMenuItem<ReviewState?>(
+                    value: null,
+                    child: Text('All review states'),
+                  ),
+                  for (final value in ReviewState.values)
+                    DropdownMenuItem(
+                      value: value,
+                      child: Text(reviewLabel(value)),
+                    ),
+                ],
+                onChanged: (value) {
+                  update(() => stateFilter = value);
+                  organizerChanged();
+                },
+              ),
+              DropdownButton<int>(
+                isExpanded: true,
+                value: minimumRating,
+                items: [
+                  for (var i = 0; i <= 5; i++)
+                    DropdownMenuItem(
+                      value: i,
+                      child: Text(i == 0 ? 'Any rating' : '$i+ stars'),
+                    ),
+                ],
+                onChanged: (value) {
+                  update(() => minimumRating = value ?? 0);
+                  organizerChanged();
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialog),
+              child: const Text('Done'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget get moreMenu => PopupMenuButton<String>(
+    tooltip: 'More organization tools',
+    icon: const Icon(Icons.more_vert),
+    itemBuilder: (_) => [
+      const PopupMenuItem(
+        value: 'filter',
+        child: Text('Filter by state or rating'),
+      ),
+      if (organizer != null) ...[
+        const PopupMenuItem(
+          value: 'review',
+          child: Text('Review states and details (R)'),
+        ),
+        const PopupMenuItem(value: 'rename', child: Text('Batch rename')),
+        const PopupMenuItem(
+          value: 'collections',
+          child: Text('Collections and saved searches'),
+        ),
+        const PopupMenuItem(value: 'find', child: Text('Find renamed files')),
+        if (organizer!.state.previousReviews.isNotEmpty)
+          const PopupMenuItem(
+            value: 'previous',
+            child: Text('Earlier file reviews'),
+          ),
+        const PopupMenuItem(value: 'preferences', child: Text('Preferences')),
       ],
-    ),
+      const PopupMenuItem(
+        value: 'unstage',
+        child: Text('Unstage current file (Backspace)'),
+      ),
+    ],
+    onSelected: (value) {
+      if (value == 'filter') filterMedia();
+      if (value == 'review') unawaited(editReview());
+      if (value == 'unstage') clearDecision();
+      if (value == 'preferences') unawaited(preferences());
+      if (value == 'find') unawaited(organizer!.verifySavedReviews());
+      if (value == 'previous') previousReviews();
+      if (value == 'rename' && session.photos.isNotEmpty) {
+        showDialog<void>(
+          context: context,
+          builder: (_) => BatchRenameDialog(
+            controller: organizer!,
+            paths: selectedPhotos.isEmpty
+                ? List.of(session.photos)
+                : selectedPhotos.toList(),
+          ),
+        );
+      }
+      if (value == 'collections') {
+        showDialog<void>(
+          context: context,
+          builder: (_) => CollectionsDialog(
+            controller: organizer!,
+            paths: currentPaths,
+            filter: CollectionFilter(
+              query: query,
+              reviewState: stateFilter?.name,
+              minimumRating: minimumRating,
+            ),
+          ),
+        );
+      }
+    },
   );
 
   @override
@@ -432,214 +661,113 @@ class _PhotoSorterScreenState extends State<PhotoSorterScreen>
         ),
       );
     }
-    return PopScope(
-      canPop: organizer != null || session.decisions.isEmpty,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) leave();
+    return MediaOrganizationShortcuts(
+      enabled: organizer?.ready == true && !typing,
+      onRating: (rating) async {
+        await organizer!.setRating(currentPaths, rating);
       },
-      child: CallbackShortcuts(
-        bindings: typing
-            ? const {}
-            : {
-                const SingleActivator(LogicalKeyboardKey.arrowRight): () =>
-                    navigate(1),
-                const SingleActivator(LogicalKeyboardKey.arrowLeft): () =>
-                    navigate(-1),
-                const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
-                    navigate(columns),
-                const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
-                    navigate(-columns),
-                const SingleActivator(LogicalKeyboardKey.space): () =>
-                    setState(() => viewing = !viewing),
-                const SingleActivator(LogicalKeyboardKey.escape): leave,
-                const SingleActivator(LogicalKeyboardKey.backspace):
-                    clearDecision,
-                if (organizer != null)
-                  const SingleActivator(LogicalKeyboardKey.keyR): editReview,
-                for (var i = 0; i < destinations.length && i < 9; i++)
-                  SingleActivator(
-                    [
-                      LogicalKeyboardKey.digit1,
-                      LogicalKeyboardKey.digit2,
-                      LogicalKeyboardKey.digit3,
-                      LogicalKeyboardKey.digit4,
-                      LogicalKeyboardKey.digit5,
-                      LogicalKeyboardKey.digit6,
-                      LogicalKeyboardKey.digit7,
-                      LogicalKeyboardKey.digit8,
-                      LogicalKeyboardKey.digit9,
-                    ][i],
-                  ): () =>
-                      stage(destinations[i]),
-              },
-        child: Focus(
-          autofocus: true,
-          child: Scaffold(
-            appBar: AppBar(
-              title: Text(
-                'Sort photos · ${widget.folderName}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              actions: [
-                actionButton(
-                  label: 'Labels',
-                  tooltip: showButtonLabels
-                      ? 'Hide button labels'
-                      : 'Show button labels',
-                  icon: Icon(
-                    showButtonLabels
-                        ? Icons.label_outline
-                        : Icons.label_off_outlined,
-                  ),
-                  onPressed:
-                      organizer?.saving == true || organizer?.running == true
-                      ? null
-                      : () async {
-                          if (organizer != null) {
-                            await organizer!.setButtonLabels(!showButtonLabels);
-                          } else {
-                            setState(
-                              () => previewButtonLabels = !previewButtonLabels,
-                            );
-                          }
-                        },
+      onSort: sortMedia,
+      onTags: tagMedia,
+      child: PopScope(
+        canPop: organizer != null || session.decisions.isEmpty,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) leave();
+        },
+        child: CallbackShortcuts(
+          bindings: typing
+              ? const {}
+              : {
+                  const SingleActivator(LogicalKeyboardKey.arrowRight): () =>
+                      navigate(1),
+                  const SingleActivator(LogicalKeyboardKey.arrowLeft): () =>
+                      navigate(-1),
+                  const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
+                      navigate(columns),
+                  const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
+                      navigate(-columns),
+                  const SingleActivator(LogicalKeyboardKey.space): () =>
+                      setState(() => viewing = !viewing),
+                  const SingleActivator(LogicalKeyboardKey.escape): leave,
+                  const SingleActivator(LogicalKeyboardKey.backspace):
+                      clearDecision,
+                  if (organizer != null)
+                    const SingleActivator(LogicalKeyboardKey.keyR): editReview,
+                  for (var i = 0; i < destinations.length && i < 9; i++)
+                    SingleActivator(
+                      MediaOrganizationShortcuts.digits[i],
+                      alt: true,
+                    ): () =>
+                        stage(destinations[i]),
+                },
+          child: Focus(
+            autofocus: true,
+            child: Scaffold(
+              appBar: AppBar(
+                title: Text(
+                  widget.folderName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ],
-            ),
-            body: Column(
-              children: [
-                toolbar,
-                if (organizer == null)
-                  const Padding(
-                    padding: EdgeInsets.all(8),
-                    child: Text(
-                      'Experimental preview · decisions stay in memory · no files are changed.\nTap or pen to select; double tap or Space to view; arrows to navigate; 1–3 to sort.',
+                actions: [
+                  IconButton(
+                    tooltip: viewing
+                        ? 'Show thumbnail grid (Space)'
+                        : 'Enlarge current photo (Space)',
+                    icon: Icon(
+                      viewing ? Icons.grid_view : Icons.photo_outlined,
                     ),
-                  )
-                else ...[
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Wrap(
-                      spacing: 12,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        SizedBox(
-                          width: 290,
-                          child: DropdownButton<bool>(
-                            isExpanded: true,
-                            value: moveMode,
-                            items: [
-                              const DropdownMenuItem(
-                                value: false,
-                                child: Text('Stage copies'),
-                              ),
-                              DropdownMenuItem(
-                                value: true,
-                                enabled: !organizer!.root.startsWith(
-                                  'content://',
-                                ),
-                                child: const Text(
-                                  'Stage moves · retain originals in Trash',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                            onChanged: organizer!.running || organizer!.saving
-                                ? null
-                                : (value) =>
-                                      setState(() => moveMode = value ?? false),
-                          ),
-                        ),
-                        Text(
-                          organizer!.saving
-                              ? 'Saving protected decisions…'
-                              : 'Decisions saved · 1–9 destinations · R review · long press to select',
-                        ),
-                        if (selectedPhotos.isNotEmpty)
-                          TextButton(
-                            onPressed: () =>
-                                setState(() => selectedPhotos.clear()),
-                            child: Text(
-                              'Clear ${selectedPhotos.length} selected',
-                            ),
-                          ),
-                      ],
+                    onPressed: () => setState(() => viewing = !viewing),
+                  ),
+                  IconButton(
+                    tooltip: 'Search filename or tag',
+                    icon: const Icon(Icons.search),
+                    onPressed: () =>
+                        setState(() => searchVisible = !searchVisible),
+                  ),
+                  if (organizer != null && organizer!.reviewWarnings.isNotEmpty)
+                    IconButton(
+                      tooltip: 'Review identity warnings',
+                      icon: const Icon(Icons.warning_amber_outlined),
+                      onPressed: () => showReviewWarnings(
+                        context,
+                        organizer!,
+                        session.current,
+                      ),
+                    ),
+                  IconButton(
+                    tooltip: organizer == null
+                        ? 'Preview queue'
+                        : 'Operation queue & history',
+                    onPressed: showQueue,
+                    icon: Badge(
+                      label: Text('${session.decisions.length}'),
+                      child: const Icon(Icons.playlist_add_check),
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Wrap(
-                      spacing: 10,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        SizedBox(
-                          width: 230,
-                          child: Focus(
-                            onFocusChange: (value) {
-                              if (mounted) setState(() => typing = value);
-                            },
-                            child: TextField(
-                              decoration: const InputDecoration(
-                                labelText: 'Find filename or tag',
-                              ),
-                              onChanged: (value) {
-                                query = value;
-                                organizerChanged();
-                              },
-                            ),
-                          ),
-                        ),
-                        DropdownButton<ReviewState?>(
-                          value: stateFilter,
-                          items: [
-                            const DropdownMenuItem<ReviewState?>(
-                              value: null,
-                              child: Text('All review states'),
-                            ),
-                            for (final state in ReviewState.values)
-                              DropdownMenuItem(
-                                value: state,
-                                child: Text(reviewLabel(state)),
-                              ),
-                          ],
-                          onChanged: (value) {
-                            stateFilter = value;
-                            organizerChanged();
-                          },
-                        ),
-                        DropdownButton<int>(
-                          value: minimumRating,
-                          items: [
-                            for (var i = 0; i <= 5; i++)
-                              DropdownMenuItem(
-                                value: i,
-                                child: Text(
-                                  i == 0 ? 'Any rating' : '$i+ stars',
-                                ),
-                              ),
-                          ],
-                          onChanged: (value) {
-                            minimumRating = value ?? 0;
-                            organizerChanged();
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (organizer!.verifyingReviews)
-                    const Text('Verifying saved reviews in the background…'),
-                  if (organizer!.relocationNotice != null)
+                  moreMenu,
+                ],
+              ),
+              body: Column(
+                children: [
+                  if (searchVisible)
                     Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Text(organizer!.relocationNotice!),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Focus(
+                        onFocusChange: (value) {
+                          if (mounted) setState(() => typing = value);
+                        },
+                        child: TextField(
+                          decoration: const InputDecoration(
+                            labelText: 'Find filename or tag',
+                          ),
+                          onChanged: (value) {
+                            query = value;
+                            organizerChanged();
+                          },
+                        ),
+                      ),
                     ),
-                  if (organizer!.reviewWarnings.isNotEmpty)
-                    Text(
-                      '${organizer!.reviewWarnings.length} saved reviews need reconciliation; their metadata is retained.',
-                    ),
-                  if (organizer!.error != null)
+                  if (organizer?.error != null)
                     Padding(
                       padding: const EdgeInsets.all(8),
                       child: Text(
@@ -649,258 +777,255 @@ class _PhotoSorterScreenState extends State<PhotoSorterScreen>
                         ),
                       ),
                     ),
-                  if (destinations.isEmpty)
-                    TextButton.icon(
-                      onPressed: addDestination,
-                      icon: const Icon(Icons.add),
-                      label: const Text('Choose your first destination folder'),
-                    ),
-                ],
-                Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (var i = 0; i < destinations.length; i++)
-                        FilledButton.tonal(
-                          onPressed: session.current == null
-                              ? null
-                              : () => stage(destinations[i]),
-                          child: Text('${i + 1} · ${destinations[i]}'),
-                        ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: session.photos.isEmpty
-                      ? const Center(
-                          child: Text('No photographs in this folder.'),
-                        )
-                      : viewing
-                      ? MediaInputScope(
-                          onCommand: (command) {
-                            if (command == MediaInputCommand.forward ||
-                                command == MediaInputCommand.backward) {
-                              navigate(
-                                command == MediaInputCommand.forward ? 1 : -1,
-                              );
-                            } else {
-                              final zoomIn =
-                                  command == MediaInputCommand.controlForward ||
-                                  command == MediaInputCommand.controlWheelUp;
-                              imageTransform.value = steppedMediaZoom(
-                                imageTransform.value,
-                                imageViewport,
-                                zoomIn ? 1 : -1,
-                              );
-                            }
-                            return true;
-                          },
-                          child: LayoutBuilder(
-                            builder: (context, constraints) {
-                              imageViewport = constraints.biggest;
-                              return InteractiveViewer(
-                                scaleFactor: MediaInputScope.wheelScaleFactor(
-                                  context,
-                                ),
-                                transformationController: imageTransform,
-                                maxScale: 8,
-                                child: MediaPointerRegion(
-                                  child: Center(
-                                    child: _Preview(
-                                      key: ValueKey(
-                                        'viewer-${session.current}',
-                                      ),
-                                      path: session.current!,
-                                      size: 1600,
-                                      load: loadPreview,
-                                    ),
-                                  ),
-                                ),
-                              );
+                  if (organizer?.saving == true ||
+                      organizer?.verifyingReviews == true)
+                    const LinearProgressIndicator(),
+                  Expanded(
+                    child: session.photos.isEmpty
+                        ? const Center(
+                            child: Text('No photographs in this folder.'),
+                          )
+                        : viewing
+                        ? MediaInputScope(
+                            onCommand: (command) {
+                              if (command == MediaInputCommand.forward ||
+                                  command == MediaInputCommand.backward) {
+                                navigate(
+                                  command == MediaInputCommand.forward ? 1 : -1,
+                                );
+                              } else {
+                                final zoomIn =
+                                    command ==
+                                        MediaInputCommand.controlForward ||
+                                    command == MediaInputCommand.controlWheelUp;
+                                imageTransform.value = steppedMediaZoom(
+                                  imageTransform.value,
+                                  imageViewport,
+                                  zoomIn ? 1 : -1,
+                                );
+                              }
+                              return true;
                             },
-                          ),
-                        )
-                      : LayoutBuilder(
-                          builder: (context, constraints) {
-                            columns = (constraints.maxWidth / 200)
-                                .floor()
-                                .clamp(1, 12);
-                            return GridView.builder(
-                              controller: scroll,
-                              gridDelegate:
-                                  SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: columns,
-                                    mainAxisExtent: organizer == null
-                                        ? 180
-                                        : 210,
-                                    crossAxisSpacing: 8,
-                                    mainAxisSpacing: 8,
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                imageViewport = constraints.biggest;
+                                return InteractiveViewer(
+                                  scaleFactor: MediaInputScope.wheelScaleFactor(
+                                    context,
                                   ),
-                              padding: const EdgeInsets.all(8),
-                              itemCount: session.photos.length,
-                              itemBuilder: (context, index) {
-                                final path = session.photos[index];
-                                final destination = session.decisions[path];
-                                return Semantics(
-                                  selected: index == session.selected,
-                                  label: path.split('/').last,
-                                  child: InkWell(
-                                    onTap: () => choose(index),
-                                    onLongPress: organizer == null
-                                        ? null
-                                        : () => setState(() {
-                                            if (!selectedPhotos.add(path)) {
-                                              selectedPhotos.remove(path);
-                                            }
-                                          }),
-                                    onDoubleTap: () => setState(() {
-                                      session.select(index);
-                                      unawaited(
-                                        organizer?.select(session.current) ??
-                                            Future<void>.value(),
-                                      );
-                                      imageTransform.value = Matrix4.identity();
-                                      viewing = true;
-                                    }),
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        border: Border.all(
-                                          width: 3,
-                                          color:
-                                              selectedPhotos.contains(path) ||
-                                                  index == session.selected
-                                              ? Theme.of(
-                                                  context,
-                                                ).colorScheme.primary
-                                              : Colors.transparent,
+                                  transformationController: imageTransform,
+                                  maxScale: 8,
+                                  child: MediaPointerRegion(
+                                    child: Center(
+                                      child: _Preview(
+                                        key: ValueKey(
+                                          'viewer-${session.current}',
                                         ),
-                                      ),
-                                      child: Column(
-                                        children: [
-                                          Expanded(
-                                            child: Stack(
-                                              fit: StackFit.expand,
-                                              children: [
-                                                _Preview(
-                                                  key: ValueKey(path),
-                                                  path: path,
-                                                  size: 300,
-                                                  load: loadPreview,
-                                                ),
-                                                if (destination != null)
-                                                  Positioned(
-                                                    top: 6,
-                                                    right: 6,
-                                                    child: Container(
-                                                      constraints:
-                                                          const BoxConstraints(
-                                                            maxWidth: 150,
-                                                          ),
-                                                      padding:
-                                                          const EdgeInsets.symmetric(
-                                                            horizontal: 8,
-                                                            vertical: 4,
-                                                          ),
-                                                      decoration: BoxDecoration(
-                                                        color: Theme.of(context)
-                                                            .colorScheme
-                                                            .primaryContainer,
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              12,
-                                                            ),
-                                                      ),
-                                                      child: Text(
-                                                        destination,
-                                                        maxLines: 1,
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                      ),
-                                                    ),
-                                                  ),
-                                              ],
-                                            ),
-                                          ),
-                                          Text(
-                                            path.split('/').last,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          if (organizer != null &&
-                                              organizer!.reviewFor(path) !=
-                                                  null)
-                                            Text(
-                                              '${reviewLabel(organizer!.reviewFor(path)!.state)} · ${organizer!.reviewFor(path)!.rating == 0 ? 'unrated' : '${organizer!.reviewFor(path)!.rating}★'} · ${organizer!.reviewFor(path)!.tags.join(', ')}',
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          if (destination != null)
-                                            Text(
-                                              destination,
-                                              style: TextStyle(
-                                                color: Theme.of(
-                                                  context,
-                                                ).colorScheme.primary,
-                                              ),
-                                            ),
-                                        ],
+                                        path: session.current!,
+                                        size: 1600,
+                                        load: loadPreview,
                                       ),
                                     ),
                                   ),
                                 );
                               },
-                            );
-                          },
-                        ),
-                ),
-                SafeArea(
-                  top: false,
-                  child: Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: Wrap(
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      alignment: WrapAlignment.center,
+                            ),
+                          )
+                        : LayoutBuilder(
+                            builder: (context, constraints) {
+                              columns = (constraints.maxWidth / 200)
+                                  .floor()
+                                  .clamp(1, 12);
+                              return GridView.builder(
+                                controller: scroll,
+                                gridDelegate:
+                                    SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: columns,
+                                      mainAxisExtent: organizer == null
+                                          ? 180
+                                          : 210,
+                                      crossAxisSpacing: 8,
+                                      mainAxisSpacing: 8,
+                                    ),
+                                padding: const EdgeInsets.all(8),
+                                itemCount: session.photos.length,
+                                itemBuilder: (context, index) {
+                                  final path = session.photos[index];
+                                  final destination = session.decisions[path];
+                                  final note = organizer?.reviewFor(path);
+                                  final details = [
+                                    if ((note?.rating ?? 0) > 0)
+                                      '${note!.rating}★',
+                                    if (note != null &&
+                                        note.state != ReviewState.unreviewed)
+                                      reviewLabel(note.state),
+                                    if (note?.tags.isNotEmpty == true)
+                                      note!.tags.join(', '),
+                                  ].join(' · ');
+                                  return Semantics(
+                                    selected: index == session.selected,
+                                    label: path.split('/').last,
+                                    value: details,
+                                    child: InkWell(
+                                      onTap: () => choose(index),
+                                      onLongPress: organizer == null
+                                          ? null
+                                          : () => setState(() {
+                                              if (!selectedPhotos.add(path)) {
+                                                selectedPhotos.remove(path);
+                                              }
+                                            }),
+                                      onDoubleTap: () => setState(() {
+                                        session.select(index);
+                                        unawaited(
+                                          organizer?.select(session.current) ??
+                                              Future<void>.value(),
+                                        );
+                                        imageTransform.value =
+                                            Matrix4.identity();
+                                        viewing = true;
+                                      }),
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          border: Border.all(
+                                            width: 3,
+                                            color:
+                                                selectedPhotos.contains(path) ||
+                                                    index == session.selected
+                                                ? Theme.of(
+                                                    context,
+                                                  ).colorScheme.primary
+                                                : Colors.transparent,
+                                          ),
+                                        ),
+                                        child: Column(
+                                          children: [
+                                            Expanded(
+                                              child: Stack(
+                                                fit: StackFit.expand,
+                                                children: [
+                                                  _Preview(
+                                                    key: ValueKey(path),
+                                                    path: path,
+                                                    size: 300,
+                                                    load: loadPreview,
+                                                  ),
+                                                  if (destination != null)
+                                                    Positioned(
+                                                      top: 6,
+                                                      right: 6,
+                                                      child: Container(
+                                                        constraints:
+                                                            const BoxConstraints(
+                                                              maxWidth: 150,
+                                                            ),
+                                                        padding:
+                                                            const EdgeInsets.symmetric(
+                                                              horizontal: 8,
+                                                              vertical: 4,
+                                                            ),
+                                                        decoration: BoxDecoration(
+                                                          color: Theme.of(context)
+                                                              .colorScheme
+                                                              .primaryContainer,
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                12,
+                                                              ),
+                                                        ),
+                                                        child: Text(
+                                                          destination,
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                            ),
+                                            SizedBox(
+                                              height: organizer == null
+                                                  ? 24
+                                                  : 44,
+                                              child: Column(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
+                                                children: [
+                                                  Text(
+                                                    path.split('/').last,
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                                  if (organizer != null)
+                                                    Text(
+                                                      details,
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      style: Theme.of(
+                                                        context,
+                                                      ).textTheme.bodySmall,
+                                                    ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                  ),
+
+                  if (viewing)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        actionButton(
-                          label: 'Previous',
-                          tooltip: 'Previous photo (Left arrow)',
-                          onPressed: () => navigate(-1),
+                        IconButton(
+                          tooltip: 'Previous photo',
                           icon: const Icon(Icons.chevron_left),
+                          onPressed: () => navigate(-1),
                         ),
                         Text(
                           session.current == null
                               ? '0 / 0'
                               : '${session.selected + 1} / ${session.photos.length}',
                         ),
-                        actionButton(
-                          label: 'Next',
-                          tooltip: 'Next photo (Right arrow)',
-                          onPressed: () => navigate(1),
+                        IconButton(
+                          tooltip: 'Next photo',
                           icon: const Icon(Icons.chevron_right),
-                        ),
-                        actionButton(
-                          label: viewing ? 'Grid' : 'View',
-                          tooltip: viewing
-                              ? 'Show thumbnail grid (Space)'
-                              : 'Enlarge current photo (Space)',
-                          icon: Icon(
-                            viewing ? Icons.grid_view : Icons.photo_outlined,
-                          ),
-                          onPressed: () => setState(() => viewing = !viewing),
-                        ),
-                        actionButton(
-                          label: 'Unstage',
-                          tooltip: 'Unstage current photo (Backspace)',
-                          icon: const Icon(Icons.backspace_outlined),
-                          onPressed: clearDecision,
+                          onPressed: () => navigate(1),
                         ),
                       ],
                     ),
-                  ),
-                ),
-              ],
+                  if (organizer != null)
+                    MediaOrganizationControls(
+                      model: organizer!,
+                      paths: currentPaths,
+                      onSort: sortMedia,
+                      onTags: tagMedia,
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Wrap(
+                        spacing: 8,
+                        children: [
+                          for (var i = 0; i < destinations.length; i++)
+                            FilledButton.tonal(
+                              onPressed: () => stage(destinations[i]),
+                              child: Text('${i + 1} · ${destinations[i]}'),
+                            ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),

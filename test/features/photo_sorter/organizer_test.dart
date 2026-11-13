@@ -56,6 +56,44 @@ void main() {
       expect(await protected.repository().loadButtonLabels(), isFalse);
     },
   );
+  test(
+    'a rename batch refuses source changes since preview and retains prior decisions',
+    () async {
+      await controller.open();
+      final before = controller.state.toJson();
+      final expected = {'a.jpg': Map<String, dynamic>.of(bridge.version)};
+      bridge.versionsByPath['a.jpg'] = {...bridge.version, 'modified': 9000};
+      expect(
+        await controller.stage(
+          ['a.jpg'],
+          destination,
+          move: false,
+          outputNames: {'a.jpg': 'Vacation-001.jpg'},
+          expectedVersions: expected,
+        ),
+        isFalse,
+      );
+      expect(controller.state.toJson(), before);
+      expect(bridge.executions, 0);
+    },
+  );
+  test(
+    'duplicate output names across staged decisions never save a partial batch',
+    () async {
+      await controller.open();
+      expect(
+        await controller.stage(
+          ['a.jpg', 'b.jpg'],
+          destination,
+          move: false,
+          outputNames: {'a.jpg': 'Photo.jpg', 'b.jpg': 'PHOTO.JPG'},
+        ),
+        isFalse,
+      );
+      expect(controller.state.decisions, isEmpty);
+      expect(bridge.executions, 0);
+    },
+  );
   tearDown(() => controller.dispose());
   test(
     'destinations, decisions, selected photo and reviews survive a new controller',

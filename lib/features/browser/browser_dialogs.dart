@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
+import 'package:vaultexplorer/features/photo_sorter/deletion_policy.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vaultexplorer/core/api/vault_file_io_api.dart';
 import 'package:vaultexplorer/core/extensions/l10n_extension.dart';
@@ -201,14 +202,17 @@ abstract class BrowserDialogs {
       return;
     }
     final hasDir = toDelete.any((item) => item.isDir);
-    final confirmed = await showAppConfirmDialog(
+    final confirmed = await allowMediaDeletion(
       context,
-      title: context.l10n.deleteItemsTitle(toDelete.length),
-      message: hasDir
-          ? context.l10n.deleteFoldersWarning
-          : context.l10n.deleteFilesWarning,
-      confirmLabel: context.l10n.delete,
-      isDestructive: true,
+      () => showAppConfirmDialog(
+        context,
+        title: context.l10n.deleteItemsTitle(toDelete.length),
+        message: hasDir
+            ? context.l10n.deleteFoldersWarning
+            : context.l10n.deleteFilesWarning,
+        confirmLabel: context.l10n.delete,
+        isDestructive: true,
+      ),
     );
     if (confirmed) onConfirmed(toDelete);
   }

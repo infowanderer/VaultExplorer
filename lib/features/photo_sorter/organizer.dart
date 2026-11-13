@@ -6,6 +6,9 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:vaultexplorer/data/services/secure_metadata_store.dart';
+import 'rename_plan.dart';
+import 'organizer_catalog.dart';
+import 'package:vaultexplorer/data/services/vault_engine/channel_methods.dart';
 
 String organizerAddress(String root, String path, {String? uri}) {
   if (!root.startsWith('content://')) {
@@ -94,28 +97,32 @@ class OrganizerState {
     Map<String, Map<String, dynamic>> decisions = const {},
     Map<String, PhotoReview> reviews = const {},
     Map<String, Map<String, dynamic>> fingerprints = const {},
+    List<Map<String, dynamic>> previousReviews = const [],
   }) : destinations = List.of(destinations),
        decisions = Map.from(decisions),
        reviews = Map.from(reviews),
-       fingerprints = Map.from(fingerprints);
+       fingerprints = Map.from(fingerprints),
+       previousReviews = List.of(previousReviews);
   int revision;
   String? selected;
   final List<OrganizerFolder> destinations;
   final Map<String, Map<String, dynamic>> decisions;
   final Map<String, PhotoReview> reviews;
   final Map<String, Map<String, dynamic>> fingerprints;
+  final List<Map<String, dynamic>> previousReviews;
   Map<String, dynamic> toJson() => {
-    'version': 1,
+    'version': 2,
     'revision': revision,
     'selected': selected,
     'destinations': destinations.map((d) => d.toJson()).toList(),
     'decisions': decisions,
     'fingerprints': fingerprints,
+    'previousReviews': previousReviews,
     'reviews': reviews.map((key, value) => MapEntry(key, value.toJson())),
   };
   OrganizerState clone() => OrganizerState.fromJson(toJson());
   factory OrganizerState.fromJson(Map<String, dynamic> json) {
-    if (json['version'] != 1) {
+    if (json['version'] != 1 && json['version'] != 2) {
       throw const FormatException('Unsupported organizer data version');
     }
     final destinations = (json['destinations'] as List)
@@ -135,14 +142,38 @@ class OrganizerState {
     final fingerprints = Map<String, dynamic>.from(
       (json['fingerprints'] as Map?) ?? {},
     ).map((k, v) => MapEntry(k, Map<String, dynamic>.from(v as Map)));
-    for (final value in fingerprints.values) {
+    void validateBinding(Map<String, dynamic> value) {
       if (value['identity'] is! String ||
-          value['sha256'] is! String ||
-          !RegExp(r'^[0-9a-f]{64}$').hasMatch(value['sha256'] as String) ||
+          (value['pending'] != null && value['pending'] is! bool) ||
+          (json['version'] == 1 && value['pending'] == true) ||
+          (value['pending'] == true
+              ? value['sha256'] != null
+              : value['sha256'] is! String ||
+                    !RegExp(
+                      r'^[0-9a-f]{64}$',
+                    ).hasMatch(value['sha256'] as String)) ||
           value['size'] is! int ||
+          (value['size'] as int) < 0 ||
           value['modified'] is! int) {
         throw const FormatException('Invalid media identity');
       }
+    }
+
+    for (final value in fingerprints.values) {
+      validateBinding(value);
+    }
+    final previousReviews = ((json['previousReviews'] as List?) ?? const [])
+        .map((entry) => Map<String, dynamic>.from(entry as Map))
+        .toList();
+    if (previousReviews.length > 200) {
+      throw const FormatException('Review candidate limit exceeded');
+    }
+    for (final entry in previousReviews) {
+      if (entry['path'] is! String || entry['binding'] is! Map) {
+        throw const FormatException('Invalid previous review');
+      }
+      validateBinding(Map<String, dynamic>.from(entry['binding'] as Map));
+      PhotoReview.fromJson(Map<String, dynamic>.from(entry['review'] as Map));
     }
     if (destinations.length > 9 ||
         decisions.length > 200 ||
@@ -165,6 +196,7 @@ class OrganizerState {
       decisions: decisions,
       reviews: reviews,
       fingerprints: fingerprints,
+      previousReviews: previousReviews,
     );
   }
 }
@@ -174,11 +206,56 @@ class OrganizerRepository {
     : _store =
           store ?? ((key) => SecureMetadataStore(key: key, expectMap: true));
   final SecureMetadataStore Function(String key) _store;
+  OrganizerCatalog get catalog =>
+      OrganizerCatalog(_store('private_metadata_organizer_collections_v1'));
+
+  Future<List<MediaReference>> searchReviewed(CollectionFilter filter) async {
+    final value = await _store('private_metadata_organizer_index_v1').read();
+    if (value == null) return [];
+    final index = jsonDecode(value) as Map;
+    if (index['version'] != 1 || index['sessions'] is! Map) {
+      throw const FormatException('Invalid organizer index');
+    }
+    final output = <String, MediaReference>{};
+    for (final entry in (index['sessions'] as Map).entries) {
+      if (entry.key is! String ||
+          !RegExp(r'^[A-Za-z0-9_-]{16,64}$').hasMatch(entry.key as String)) {
+        throw const FormatException('Invalid organizer session identity');
+      }
+      final location = entry.value as Map;
+      final state = await load(
+        'private_metadata_organizer_session_${entry.key}',
+      );
+      for (final review in state.reviews.entries) {
+        if (!filter.matches(
+          path: review.key,
+          state: review.value.state.name,
+          rating: review.value.rating,
+          tags: review.value.tags,
+        )) {
+          continue;
+        }
+        final fingerprint = state.fingerprints[review.key];
+        if (fingerprint == null) continue;
+        final reference = MediaReference.fromJson({
+          ...fingerprint,
+          if (fingerprint['pending'] == true) 'sha256': '',
+          'root': location['root'],
+          'path': review.key,
+        });
+        output[reference.key] = reference;
+      }
+    }
+    return output.values.toList();
+  }
+
   static const _uiKey = 'private_metadata_organizer_ui_v1';
   static bool _buttonLabels(String? value) {
     if (value == null) return true;
     final json = jsonDecode(value) as Map;
-    if (json['version'] != 1 || json['showButtonLabels'] is! bool) {
+    if (json['version'] != 1 ||
+        json['showButtonLabels'] is! bool ||
+        (json['confirmDeletion'] != null && json['confirmDeletion'] is! bool)) {
       throw const FormatException('Invalid organizer display preference');
     }
     return json['showButtonLabels'] as bool;
@@ -191,8 +268,34 @@ class OrganizerRepository {
     previous,
   ) {
     _buttonLabels(previous); // Refuse to replace invalid protected preferences.
-    return jsonEncode({'version': 1, 'showButtonLabels': value});
+    return jsonEncode({
+      ...?previous == null
+          ? null
+          : jsonDecode(previous) as Map<String, dynamic>,
+      'version': 1,
+      'showButtonLabels': value,
+    });
   });
+  Future<bool> loadConfirmDeletion() async {
+    final value = await _store(_uiKey).read();
+    _buttonLabels(value);
+    return value == null
+        ? true
+        : (jsonDecode(value) as Map)['confirmDeletion'] as bool? ?? true;
+  }
+
+  Future<void> saveConfirmDeletion(bool value) =>
+      _store(_uiKey).update((previous) {
+        final labels = _buttonLabels(previous);
+        return jsonEncode({
+          ...?previous == null
+              ? null
+              : jsonDecode(previous) as Map<String, dynamic>,
+          'version': 1,
+          'showButtonLabels': labels,
+          'confirmDeletion': value,
+        });
+      });
 
   Future<String> sessionKey(String root, String folder) async {
     String? id;
@@ -262,6 +365,16 @@ class OrganizerRepository {
 class OrganizerBridge {
   const OrganizerBridge(this._channel);
   final MethodChannel _channel;
+  Future<Uint8List?> referenceThumbnail(
+    MediaReference reference, {
+    int size = 300,
+  }) => _channel.invokeMethod<Uint8List>(ChannelMethods.getImageThumbnail, {
+    'filePath': reference.root,
+    'fileName': reference.path,
+    'isLocalStorage': true,
+    'targetSize': size,
+    'quality': 70,
+  });
   Future<String> chooseFolder({String? path, String? treeUri}) async =>
       (await _channel.invokeMethod<String>('organizerChooseFolder', {
         'path': path,
@@ -365,7 +478,7 @@ class OrganizerController extends ChangeNotifier {
     if (!disposed) notifyListeners();
   }
 
-  Future<void> open() async {
+  Future<void> open({bool verifyContent = true}) async {
     final generation = ++_openGeneration;
     ready = false;
     error = null;
@@ -384,7 +497,7 @@ class OrganizerController extends ChangeNotifier {
       error = null;
       _verifiedReviews.clear();
       reviewWarnings.clear();
-      unawaited(verifySavedReviews());
+      unawaited(verifySavedReviews(verifyContent: verifyContent));
       unawaited(_recoverIncomingReviews());
     } catch (_) {
       error =
@@ -450,6 +563,8 @@ class OrganizerController extends ChangeNotifier {
     OrganizerFolder destination, {
     required bool move,
     String? nextSelected,
+    Map<String, String>? outputNames,
+    Map<String, Map<String, dynamic>>? expectedVersions,
   }) async {
     if (saving || running || !ready) return false;
     if (move && root.startsWith('content://')) {
@@ -467,6 +582,25 @@ class OrganizerController extends ChangeNotifier {
       final next = state.clone();
       for (final path in paths) {
         final version = await bridge.inspect(root, path);
+        final expected = expectedVersions?[path];
+        if (expectedVersions != null && expected == null) {
+          error =
+              'Refresh the rename preview before staging all selected files.';
+          return false;
+        }
+        if (expected != null &&
+            (version['identity'] != expected['identity'] ||
+                version['size'] != expected['size'] ||
+                version['modified'] != expected['modified'])) {
+          error =
+              'A source changed after the rename preview. Refresh the preview before staging.';
+          return false;
+        }
+        final name = outputNames?[path] ?? path.split('/').last;
+        if (!validOrganizerName(name)) {
+          error = 'The rename preview contains an invalid filename.';
+          return false;
+        }
         if (move && version['canMove'] == false) {
           error =
               'This source folder supports verified copies only. Stage a copy instead.';
@@ -475,12 +609,27 @@ class OrganizerController extends ChangeNotifier {
         next.decisions[path] = {
           'folder': destination.toJson(),
           'move': move,
-          'name': path.split('/').last,
+          'name': name,
           'version': version,
         };
       }
       if (next.decisions.length > 200) {
         throw StateError('Commit a smaller batch');
+      }
+      final outputs = <String>{};
+      for (final decision in next.decisions.values) {
+        final folder = OrganizerFolder.fromJson(
+          Map<String, dynamic>.from(decision['folder'] as Map),
+        );
+        final address = organizerAddress(
+          folder.root,
+          p.posix.join(folder.path, decision['name'] as String),
+        ).toLowerCase();
+        if (!outputs.add(address)) {
+          error =
+              'Two staged photographs have the same destination filename. Change their output names.';
+          return false;
+        }
       }
       next.selected = nextSelected;
       await repository.save(_key!, next);
@@ -509,6 +658,75 @@ class OrganizerController extends ChangeNotifier {
   Future<void> clearDecision(String path) async {
     await edit((next) => next.decisions.remove(path));
   }
+
+  static bool sameMediaVersion(
+    Map<String, dynamic> a,
+    Map<String, dynamic> b,
+  ) =>
+      a['identity'] == b['identity'] &&
+      a['size'] == b['size'] &&
+      a['modified'] == b['modified'];
+
+  /// Immediate metadata editing does not read an entire multi-gigabyte video.
+  /// Identity-only bindings stay at this path until content verification; they
+  /// never become automatic relocation matches without a full hash.
+  Future<bool> updateReview(
+    List<String> paths,
+    PhotoReview Function(PhotoReview) update,
+  ) async {
+    if (!ready || saving || running || disposed || paths.isEmpty) return false;
+    saving = true;
+    error = null;
+    changed();
+    try {
+      final next = state.clone();
+      for (final path in paths) {
+        final found = await bridge.inspect(root, path);
+        final old = next.fingerprints[path];
+        final same = old != null && sameMediaVersion(old, found);
+        final previous = next.reviews[path];
+        if (!same && old != null && previous != null) {
+          next.previousReviews.add({
+            'path': path,
+            'review': previous.toJson(),
+            'binding': Map.of(old),
+          });
+        }
+        final review = update(
+          same && previous != null ? previous : const PhotoReview(),
+        );
+        PhotoReview.fromJson(review.toJson());
+        next.reviews[path] = review;
+        next.fingerprints[path] = same
+            ? Map.of(old)
+            : {...found, 'pending': true};
+        next.decisions[path]?.remove('jobId');
+      }
+      await repository.save(_key!, next);
+      next.selected = state.selected;
+      state = next;
+      _verifiedReviews.addAll(paths);
+      for (final path in paths) {
+        reviewWarnings.remove(path);
+      }
+      return true;
+    } catch (_) {
+      error = 'Could not save the review. Previous saved reviews are retained.';
+      return false;
+    } finally {
+      saving = false;
+      changed();
+    }
+  }
+
+  Future<bool> setRating(List<String> paths, int rating) => updateReview(
+    paths,
+    (old) => PhotoReview(state: old.state, rating: rating, tags: old.tags),
+  );
+  Future<bool> setTags(List<String> paths, List<String> tags) => updateReview(
+    paths,
+    (old) => PhotoReview(state: old.state, rating: old.rating, tags: tags),
+  );
 
   Future<bool> review(List<String> paths, PhotoReview review) async {
     if (!ready || saving || running || disposed) return false;
@@ -557,7 +775,7 @@ class OrganizerController extends ChangeNotifier {
 
   /// Exact filesystem identity AND full content are required for an automatic
   /// within-folder rename match. Hash-only/ambiguous candidates remain unbound.
-  Future<void> verifySavedReviews() async {
+  Future<void> verifySavedReviews({bool verifyContent = true}) async {
     if (!ready || disposed || running || saving || verifyingReviews) return;
     final generation = _openGeneration;
     _verifierGeneration = generation;
@@ -582,10 +800,15 @@ class OrganizerController extends ChangeNotifier {
           return;
         }
         try {
-          final found = await bridge.fingerprint(root, entry.key);
+          final pending = entry.value['pending'] == true || !verifyContent;
+          final found = pending
+              ? await bridge.inspect(root, entry.key)
+              : await bridge.fingerprint(root, entry.key);
           if (disposed || generation != _openGeneration) return;
-          if (found['identity'] == entry.value['identity'] &&
-              found['sha256'] == entry.value['sha256']) {
+          if (pending
+              ? sameMediaVersion(found, entry.value)
+              : found['identity'] == entry.value['identity'] &&
+                    found['sha256'] == entry.value['sha256']) {
             _verifiedReviews.add(entry.key);
             reviewWarnings.remove(entry.key);
           } else {
@@ -607,6 +830,9 @@ class OrganizerController extends ChangeNotifier {
             'Earlier review has no verified identity. Reapply it explicitly if appropriate.';
       }
       if (missing.isEmpty) return;
+      if (!verifyContent) {
+        return; // Viewer navigation never starts a relocation scan.
+      }
       final candidates = <String, List<String>>{};
       for (final path in photos.where(
         (path) => !state.reviews.containsKey(path),
@@ -636,6 +862,11 @@ class OrganizerController extends ChangeNotifier {
             _stop ||
             generation != _openGeneration) {
           return;
+        }
+        if (entry.value['pending'] == true) {
+          reviewWarnings[entry.key] =
+              'Saved review retained at its former path. Content verification is required before relocation.';
+          continue;
         }
         final identity = entry.value['identity'];
         final oldMatches = missing
@@ -785,6 +1016,16 @@ class OrganizerController extends ChangeNotifier {
         if (_stop) break;
         if (entry.value['jobId'] != null) continue;
         final d = entry.value;
+        final binding = next.fingerprints[entry.key];
+        if (binding?['pending'] == true &&
+            next.reviews.containsKey(entry.key)) {
+          final found = await bridge.fingerprint(root, entry.key);
+          if (!sameMediaVersion(binding!, found)) {
+            throw StateError('Review source changed before transfer');
+          }
+          next.fingerprints[entry.key] = found;
+          _verifiedReviews.add(entry.key);
+        }
         final folder = OrganizerFolder.fromJson(
           Map<String, dynamic>.from(d['folder'] as Map),
         );
@@ -943,14 +1184,7 @@ class OrganizerController extends ChangeNotifier {
   }
 
   Future<void> renameDecision(String path, String name) async {
-    final valid =
-        name.trim().isNotEmpty &&
-        utf8.encode(name).length <= 240 &&
-        name != '.' &&
-        name != '..' &&
-        !name.endsWith('.') &&
-        !name.endsWith(' ') &&
-        !name.contains(RegExp(r'[\/\\:*?"<>|\x00-\x1f]'));
+    final valid = validOrganizerName(name);
     if (!valid) {
       error =
           'Choose a filename without path separators or reserved characters.';

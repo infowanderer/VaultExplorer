@@ -1,3 +1,7 @@
+import 'package:vaultexplorer/features/photo_sorter/deletion_policy.dart';
+import 'package:vaultexplorer/features/photo_sorter/media_organization_host.dart';
+import 'package:vaultexplorer/features/photo_sorter/organizer.dart';
+import 'package:vaultexplorer/features/photo_sorter/organizer_destination_picker.dart';
 import 'package:vaultexplorer/core/config/application_identity.dart';
 import 'dart:async';
 import 'dart:math' as math;
@@ -2452,9 +2456,10 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen>
   }
 
   Future<void> _deleteCurrentFile() async {
+    final fileToDelete = _playlistController.currentFile;
     _menuOpened();
     final cs = Theme.of(context).colorScheme;
-    final confirm = await showDialog<bool>(
+    final confirm = await allowMediaDeletion(context, () async => await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.l10n.deleteFileDialogTitle),
@@ -2471,12 +2476,10 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen>
           ),
         ],
       ),
-    );
+    ) == true);
     _menuClosed();
 
-    if (confirm != true) return;
-
-    final fileToDelete = _playlistController.currentFile;
+    if (!confirm || !mounted) return;
     bool success = false;
     try {
       success = await _fileIoApi.deleteFile(widget.container, fileToDelete);
@@ -4095,7 +4098,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen>
       );
     }
 
-    return MediaInputScope(
+    Widget buildViewer(Widget? organizationControls) => MediaInputScope(
       onExit: _exitFromEscape,
       onCommand: (command) => _handleMediaInput(command, mediaViewerConfig),
       child: PopScope(
@@ -4712,6 +4715,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen>
                                           ),
                                   ),
                                   MediaViewerBottomControls(
+                                    organizationControls: organizationControls,
                                     playlistController: _playlistController,
                                     playbackManager: _playbackManager,
                                     videoProgressNotifier:
@@ -4767,5 +4771,18 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen>
       ),
     ),
   ));
+    final current = organizationPath(widget.container.uri, _playlistController.currentFile);
+    if (widget.container.isLocalStorage && !widget.isArchivePreview && !widget.isLibraryPlayback && current != null) {
+      return MediaOrganizationHost(
+        root: widget.container.uri, folder: organizationFolder(current),
+        files: _playlistController.playlist.map((file) => organizationPath(widget.container.uri, file)).whereType<String>().toList(),
+        selected: [current], bridge: OrganizerBridge(ref.read(vaultEngineChannelProvider)),
+        enabled: !_controlsLocked && !_isEditingLayout, overlay: true,
+        pickDestination: (bridge) => pickOrganizerDestination(context, ref.read(vaultLifecycleApiProvider), bridge),
+        builder: (_, model, controls) => buildViewer(!_controlsLocked && !_isEditingLayout ? controls : null),
+      );
+    }
+    return buildViewer(null);
+
   }
 }
