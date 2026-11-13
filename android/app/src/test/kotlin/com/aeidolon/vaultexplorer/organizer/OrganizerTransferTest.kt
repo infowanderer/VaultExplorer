@@ -7,6 +7,49 @@ import java.nio.file.Path
 import java.nio.file.attribute.FileTime
 
 class OrganizerTransferTest {
+    @Test fun interruptedUndoCannotBeReclassifiedAsForwardTransfer() = fixture { dir, raw, journal, engine ->
+        val src = source(dir); val dst = destination(dir)
+        val completed = engine.execute(engine.prepare(src, dst, "photo.jpg", true).id)
+        var relocations = 0
+        val interruptedFiles = object : OrganizerFiles by raw {
+            override fun relocate(source: MediaLocation, target: MediaLocation) {
+                if (++relocations == 2) throw java.util.concurrent.CancellationException()
+                raw.relocate(source, target)
+            }
+        }
+        try { OrganizerTransfer(interruptedFiles, journal).undo(completed.id); fail("Expected interrupted undo") }
+        catch (_: java.util.concurrent.CancellationException) { /* Original restored, output still in place. */ }
+        assertEquals("undoing", journal.read(completed.id).state)
+        repeat(3) {
+            val reconciled = OrganizerTransfer(raw, journal).reconcile(completed.id)
+            assertEquals("undoing", reconciled.state)
+            assertTrue(Files.exists(dir.resolve("photo.jpg")))
+            assertTrue(Files.exists(dir.resolve("keep/photo.jpg")))
+        }
+        try { engine.execute(completed.id); fail("An interrupted undo must not resume forward") }
+        catch (_: IllegalArgumentException) { /* Forward execution remains blocked. */ }
+    }
+
+    @Test fun interruptedUndoRemainsReconciliableAfterStorageReturns() = fixture { dir, raw, journal, engine ->
+        val src = source(dir); val dst = destination(dir)
+        val completed = engine.execute(engine.prepare(src, dst, "photo.jpg", true).id)
+        var relocations = 0
+        val interruptedFiles = object : OrganizerFiles by raw {
+            override fun relocate(source: MediaLocation, target: MediaLocation) {
+                raw.relocate(source, target)
+                if (++relocations == 2) throw java.util.concurrent.CancellationException()
+            }
+        }
+        try { OrganizerTransfer(interruptedFiles, journal).undo(completed.id); fail("Expected interrupted undo") }
+        catch (_: java.util.concurrent.CancellationException) { /* Both renames completed, final journal commit did not. */ }
+        val unavailable = object : OrganizerFiles by raw {
+            override fun stat(file: MediaLocation): MediaVersion = throw java.io.IOException("Disconnected fixture")
+        }
+        assertEquals("undoing", OrganizerTransfer(unavailable, journal).reconcile(completed.id).state)
+        assertEquals("undone", OrganizerTransfer(raw, journal).reconcile(completed.id).state)
+        assertTrue(Files.exists(dir.resolve("photo.jpg")))
+        assertFalse(Files.exists(dir.resolve("keep/photo.jpg")))
+    }
     private class Journal : OrganizerJournal {
         val jobs = linkedMapOf<String, OrganizerJob>()
         var fail = false

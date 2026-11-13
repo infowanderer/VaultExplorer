@@ -221,7 +221,11 @@ class OrganizerTransfer(private val files: OrganizerFiles, private val journal: 
             }
             journal.write(result); result
         } catch (_: Exception) {
-            job.copy(state = "needsReview", message = "Ownership or content is uncertain. Inspect recorded locations; no files were changed by verification.")
+            // Undo intent must survive failed verification. Losing this phase
+            // would let a later reconciliation treat the restored source and
+            // remaining output as a forward copy and offer Resume again.
+            job.copy(state = if (job.state == "undoing") "undoing" else "needsReview",
+                message = "Ownership or content is uncertain. Inspect recorded locations; no files were changed by verification.")
                 .also { journal.write(it) }
         }
     }

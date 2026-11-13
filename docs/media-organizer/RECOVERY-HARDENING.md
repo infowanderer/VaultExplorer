@@ -1,5 +1,24 @@
 # Recovery hardening checkpoint
 
+## Interrupted Undo follow-up
+
+Two additional regression cases reproduced a production state-transition bug:
+failed reconciliation changed `undoing` into generic `needsReview`, losing the
+direction of the operation. Subsequent verification could classify a partially
+undone move as a forward copy, or fail to recognize a completed Undo after
+disconnected storage returned.
+
+Reconciliation now preserves `undoing` on failure. Repeated verification stays
+read-only, forward execution remains blocked, and fully completed Undo can be
+recognized after storage returns. Partially completed Undo still requires manual
+inspection; this fix does not introduce automatic filesystem replay. Previously
+ambiguous records are not guessed or silently migrated.
+
+Both new tests failed before the fix. The updated host suite has **21 passing
+JUnit tests**. This production Kotlin change requires a full Android build; the
+previous Dart-only APK updater must refuse it. The published APK does not yet
+include this fix. The original checkpoint below changed tests only.
+
 The next release begins with storage verification. `OrganizerCrashBoundaryTest`
 simulates abrupt process termination immediately before and immediately after
 each journal write in copy and move workflows. Termination bypasses the ordinary
