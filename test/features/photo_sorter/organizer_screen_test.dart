@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vaultexplorer/features/photo_sorter/organizer.dart';
 import 'package:vaultexplorer/features/photo_sorter/photo_sorter_screen.dart';
+
 import 'organizer_fakes.dart';
 
 void main() {
@@ -59,6 +60,62 @@ void main() {
     await tester.tap(find.text('My picks'));
     await tester.pumpAndSettle();
   }
+
+  testWidgets(
+    'fuzzy destination results retain shortcuts and Enter stages the matching folder',
+    (tester) async {
+      await open(tester);
+      await controller.addDestination(
+        const OrganizerFolder('/fixture/a', '', 'Archive'),
+      );
+      await controller.addDestination(
+        const OrganizerFolder('/fixture/b', '', 'My Favorites'),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Choose a destination (S)'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Find destination'),
+        'myfav',
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('My Favorites'), findsOneWidget);
+      expect(find.text('Alt+2'), findsOneWidget);
+      expect(find.text('Archive'), findsNothing);
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(
+        (controller.state.decisions['a.jpg']!['folder'] as Map)['root'],
+        '/fixture/b',
+      );
+      expect(controller.state.reviews, isEmpty);
+      expect(bridge.executions, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('Enter with no destination match never stages a fallback', (
+    tester,
+  ) async {
+    await open(tester, size: const Size(400, 800));
+    await controller.addDestination(
+      const OrganizerFolder('/fixture/a', '', 'Archive'),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Choose a destination (S)'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Find destination'),
+      'zzzz',
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('No matching destinations'), findsOneWidget);
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    expect(controller.state.decisions, isEmpty);
+    expect(bridge.executions, 0);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'compact gallery keeps stars Sort and Tags visible with advanced tools secondary',

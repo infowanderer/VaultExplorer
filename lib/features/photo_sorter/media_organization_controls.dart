@@ -1,6 +1,8 @@
 import 'package:material_ui/material_ui.dart';
+
 import 'organizer.dart';
 import 'organizer_action_button.dart';
+import 'destination_search.dart';
 
 class MediaOrganizationControls extends StatelessWidget {
   const MediaOrganizationControls({
@@ -150,111 +152,152 @@ Future<void> showMediaSortSheet(
 }) async {
   var move = false;
   var staging = false;
+  var query = '';
   String? error;
+  Future<void> stageDestination(
+    int index,
+    BuildContext sheet,
+    StateSetter update,
+  ) async {
+    if (staging) return;
+    update(() {
+      staging = true;
+      error = null;
+    });
+    final okay = await model.stage(
+      paths,
+      model.state.destinations[index],
+      move: move,
+      nextSelected: nextSelected ?? model.state.selected,
+    );
+    if (!sheet.mounted) return;
+    if (okay) {
+      Navigator.pop(sheet);
+    } else {
+      update(() {
+        staging = false;
+        error = model.error ?? 'Could not stage these files.';
+      });
+    }
+  }
+
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     builder: (sheet) => StatefulBuilder(
-      builder: (context, update) => SafeArea(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(context).height * .75,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Sort ${paths.length} ${paths.length == 1 ? 'file' : 'files'}',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    ChoiceChip(
-                      label: const Text('Copy'),
-                      selected: !move,
-                      onSelected: (_) => update(() => move = false),
+      builder: (context, update) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(context).bottom,
+        ),
+        child: SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(context).height * .75,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Sort ${paths.length} ${paths.length == 1 ? 'file' : 'files'}',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    autofocus: true,
+                    enabled: !staging,
+                    decoration: const InputDecoration(
+                      labelText: 'Find destination',
+                      hintText: 'Type a name; Enter chooses the first match',
+                      prefixIcon: Icon(Icons.search),
                     ),
-                    ChoiceChip(
-                      label: const Text('Move'),
-                      selected: move,
-                      onSelected: model.root.startsWith('content://')
-                          ? null
-                          : (_) => update(() => move = true),
-                    ),
-                  ],
-                ),
-                Flexible(
-                  child: ListView(
-                    shrinkWrap: true,
+                    onChanged: (value) => update(() => query = value),
+                    onSubmitted: (_) {
+                      final matches = rankDestinations(
+                        model.state.destinations.map((d) => d.name).toList(),
+                        query,
+                      );
+                      if (matches.isNotEmpty)
+                        stageDestination(matches.first, sheet, update);
+                    },
+                  ),
+                  Wrap(
+                    spacing: 8,
                     children: [
-                      for (var i = 0; i < model.state.destinations.length; i++)
-                        ListTile(
-                          leading: const Icon(Icons.folder_outlined),
-                          title: Text(model.state.destinations[i].name),
-                          trailing: Text('Alt+${i + 1}'),
-                          onTap: staging
-                              ? null
-                              : () async {
-                                  update(() {
-                                    staging = true;
-                                    error = null;
-                                  });
-                                  final okay = await model.stage(
-                                    paths,
-                                    model.state.destinations[i],
-                                    move: move,
-                                    nextSelected:
-                                        nextSelected ?? model.state.selected,
-                                  );
-                                  if (!sheet.mounted) return;
-                                  if (okay) {
-                                    Navigator.pop(sheet);
-                                  } else {
-                                    update(() {
-                                      staging = false;
-                                      error =
-                                          model.error ??
-                                          'Could not stage these files.';
-                                    });
-                                  }
-                                },
-                        ),
+                      ChoiceChip(
+                        label: const Text('Copy'),
+                        selected: !move,
+                        onSelected: (_) => update(() => move = false),
+                      ),
+                      ChoiceChip(
+                        label: const Text('Move'),
+                        selected: move,
+                        onSelected: model.root.startsWith('content://')
+                            ? null
+                            : (_) => update(() => move = true),
+                      ),
                     ],
                   ),
-                ),
-                if (model.state.destinations.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8),
-                    child: Text(
-                      'Choose a destination folder to start sorting.',
+                  Flexible(
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: [
+                        if (model.state.destinations.isNotEmpty &&
+                            rankDestinations(
+                              model.state.destinations
+                                  .map((d) => d.name)
+                                  .toList(),
+                              query,
+                            ).isEmpty)
+                          const ListTile(
+                            title: Text('No matching destinations'),
+                          ),
+                        for (final i in rankDestinations(
+                          model.state.destinations.map((d) => d.name).toList(),
+                          query,
+                        ))
+                          ListTile(
+                            leading: const Icon(Icons.folder_outlined),
+                            title: Text(model.state.destinations[i].name),
+                            trailing: Text('Alt+${i + 1}'),
+                            onTap: staging
+                                ? null
+                                : () => stageDestination(i, sheet, update),
+                          ),
+                      ],
                     ),
                   ),
-                if (error != null)
-                  Text(
-                    error!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
+                  if (model.state.destinations.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: Text(
+                        'Choose a destination folder to start sorting.',
+                      ),
                     ),
+                  if (error != null)
+                    Text(
+                      error!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  if (addDestination != null)
+                    TextButton.icon(
+                      onPressed: () async {
+                        Navigator.pop(sheet);
+                        await addDestination();
+                      },
+                      icon: const Icon(Icons.create_new_folder_outlined),
+                      label: const Text('Add destination'),
+                    ),
+                  const Text(
+                    'Added to your queue. Run the queue when ready.',
+                    style: TextStyle(fontSize: 12),
                   ),
-                if (addDestination != null)
-                  TextButton.icon(
-                    onPressed: () async {
-                      Navigator.pop(sheet);
-                      await addDestination();
-                    },
-                    icon: const Icon(Icons.create_new_folder_outlined),
-                    label: const Text('Add destination'),
-                  ),
-                const Text(
-                  'Added to your queue. Run the queue when ready.',
-                  style: TextStyle(fontSize: 12),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -326,8 +369,7 @@ Future<void> showMediaTagsSheet(
                                   s.codeUnits.any((c) => c < 32),
                             )) {
                           update(
-                            () => error =
-                                'Use up to 20 tags, each at most 40 characters.',
+                            () => error = 'Use up to 20 tags, each at most 40 characters.',
                           );
                           return;
                         }
