@@ -28,6 +28,7 @@ import 'package:vaultexplorer/features/browser/viewer/widgets/swipe_to_seek_clai
 import 'package:vaultexplorer/features/browser/viewer/widgets/swipe_seek_hud.dart';
 import 'package:vaultexplorer/features/browser/viewer/widgets/swipe_to_dismiss_layer.dart';
 import 'package:vaultexplorer/data/services/session_lock_controller.dart';
+import '../media_input.dart';
 
 import 'package:vaultexplorer/data/models/scrub_preview_style.dart';
 import 'package:vaultexplorer/features/browser/viewer/screen_brightness_bridge.dart';
@@ -1563,9 +1564,11 @@ class _MediaPlayerWidgetState extends ConsumerState<MediaPlayerWidget>
             ),
           )
         : SizedBox.expand(child: MediaSwipeDismissTarget(child: stackContent));
+    corePlayerWidget = MediaPointerRegion(child: corePlayerWidget);
     if (!widget.isAudio && widget.enableZoom) {
       final vpSize = MediaQuery.of(context).size;
       corePlayerWidget = InteractiveViewer(
+        scaleFactor: MediaInputScope.wheelScaleFactor(context),
         key: _interactiveViewerKey,
         transformationController: _videoTransformationController,
         maxScale: MediaViewerConstants.maxVideoZoom,

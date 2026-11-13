@@ -34,7 +34,7 @@ void main() {
   var lockContainerCalls = 0;
 
   setUp(() {
-    secureValues = {};
+    secureValues = {'private_metadata_containers_v1': '[]'};
     activeSessions = [];
     lockContainerCalls = 0;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -43,6 +43,8 @@ void main() {
         case 'deleteSecure':
           secureValues.remove((call.arguments as Map)['key'] as String);
           return true;
+        case 'containsKeySecure':
+          return secureValues.containsKey((call.arguments as Map)['key'] as String);
         case 'readSecure':
           return secureValues[(call.arguments as Map)['key'] as String];
         case 'writeSecure':
@@ -69,7 +71,10 @@ void main() {
     container = ProviderContainer();
   });
 
-  tearDown(() {
+  tearDown(() async {
+    // onContainerMounted schedules a metadata save without awaiting it.
+    // Keep the native fake alive until those queued microtasks complete.
+    await Future<void>.delayed(Duration.zero);
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, null);
     container.dispose();

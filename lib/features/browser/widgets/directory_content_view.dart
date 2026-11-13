@@ -1,3 +1,7 @@
+import 'package:vaultexplorer/features/photo_sorter/media_organization_host.dart';
+import 'package:vaultexplorer/features/photo_sorter/organizer_destination_picker.dart';
+import 'package:vaultexplorer/features/photo_sorter/photo_sorter_screen.dart';
+import 'package:vaultexplorer/features/photo_sorter/organizer.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
@@ -5811,15 +5815,43 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
     // Every file/folder tile, and the bookmark bar, below this point reads the
     // user's chosen skin from here. Kept as a thin wrapper so the (very
     // large) screen body itself is untouched.
+    ref.watch(fileBrowserSelectionProvider(_stateKey));
+    bool isMedia(RawEntry entry) => !entry.isDir &&
+        (fileKindOf(entry.name) == FileKind.image ||
+            fileKindOf(entry.name) == FileKind.video);
+    String? mediaPath(RawEntry entry) =>
+        organizationPath(widget.container.uri, _joinPath(entry.name));
+    final mediaSelection = selectedItems.where(isMedia)
+        .map(mediaPath).whereType<String>().toList();
     final skinTokens = Theme.of(context).extension<AppSkinTokens>();
-    return FileManagerSkinScope(
-      skin: skinTokens == null
-          ? _toolbarConfig.skin
-          : skinTokens.fileManagerFollowsAppSkin
-          ? skinTokens.fileManagerSkin
+    final browser = FileManagerSkinScope(
+      skin: skinTokens == null ? _toolbarConfig.skin
+          : skinTokens.fileManagerFollowsAppSkin ? skinTokens.fileManagerSkin
           : skinTokens.manualFileManagerSkin,
       child: _buildBrowser(context),
     );
+    if (widget.container.isLocalStorage && _archiveContext == null) {
+      final files = _currentItems.where(isMedia)
+          .map(mediaPath).whereType<String>().toList();
+      final sameFolder = mediaSelection.isEmpty || mediaSelection.every(
+        (path) => organizationFolder(path) == organizationFolder(mediaSelection.first));
+      return MediaOrganizationHost(
+        root: widget.container.uri,
+        folder: mediaSelection.isNotEmpty
+            ? organizationFolder(mediaSelection.first) : _currentDirPath,
+        files: files,
+        selected: sameFolder ? mediaSelection : const [],
+        enabled: _isActiveTab,
+        bridge: OrganizerBridge(ref.read(vaultEngineChannelProvider)),
+        pickDestination: (bridge) => pickOrganizerDestination(
+          context, ref.read(vaultLifecycleApiProvider), bridge),
+        builder: (_, model, controls) => Column(children: [
+          Expanded(child: browser),
+          if (mediaSelection.isNotEmpty && sameFolder) controls,
+        ]),
+      );
+    }
+    return browser;
   }
 
   Widget _buildBrowser(BuildContext context) {
@@ -6203,6 +6235,65 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
         container: widget.container,
         pathStack: appBarPathStack,
         onJumpTo: _jumpTo,
+        onSortPhotos:
+            !widget.container.isLocalStorage ||
+                _archiveContext != null ||
+                appBarSearchActive
+            ? null
+            : () async {
+                final photos = filteredItems
+                    .where(
+                      (e) =>
+                          !e.isDir &&
+                          !e.isPlaceholder &&
+                          const {
+                            'jpg',
+                            'jpeg',
+                            'png',
+                            'webp',
+                            'heic',
+                            'heif',
+                            'avif',
+                            'bmp',
+                          }.contains(e.extension),
+                    )
+                    .map((e) => _joinPath(e.name))
+                    .toList();
+                final io = ref.read(vaultFileIoApiProvider);
+                final organizer = OrganizerController(root: widget.container.uri, folder: _currentDirPath, photos: photos, bridge: OrganizerBridge(ref.read(vaultEngineChannelProvider)));
+                final lifecycle = ref.read(vaultLifecycleApiProvider);
+                await Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => PhotoSorterScreen(
+                      organizer: organizer,
+                      pickDestination: () async {
+                        final picked = await lifecycle.pickExtractFolder();
+                        if (picked == null || !mounted) return null;
+                        final location = await organizer.bridge.chooseFolder(path: picked.path, treeUri: picked.treeUri);
+                        if (!mounted) return null;
+                        final label = await showDialog<String>(context: context, builder: (dialog) {
+                          var value = picked.displayName;
+                          return AlertDialog(title: const Text('Name this destination'),
+                            content: TextFormField(initialValue: value, autofocus: true, maxLength: 80, onChanged: (text) => value = text),
+                            actions: [TextButton(onPressed: () => Navigator.pop(dialog), child: const Text('Cancel')), FilledButton(onPressed: () { if (value.trim().isNotEmpty) Navigator.pop(dialog, value.trim()); }, child: const Text('Save'))]);
+                        });
+                        return label == null ? null : OrganizerFolder(location, '', label);
+                      },
+                      photos: photos,
+                      folderName: widget.container.displayName,
+                      loadPreview: (path, size) => io.getImageThumbnail(
+                        widget.container,
+                        path,
+                        targetSize: size,
+                      ),
+                    ),
+                  ),
+                );
+                if (mounted) {
+                  _opSvc.notifyVolumeContentChanged(widget.container.volId);
+                  await _loadDirectoryContents(_currentDirPath, refresh: true);
+                }
+              },
         forwardStack: appBarForwardStack,
         onForwardTo: _navigateForward,
         filteredItems: filteredItems,

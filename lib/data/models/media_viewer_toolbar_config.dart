@@ -70,6 +70,13 @@ class MediaViewerToolbarConfig {
 
   /// The skip times offered by the settings slider.
   static const List<int> doubleTapSkipOptions = [3, 5, 10, 15, 20, 30, 45, 60];
+  /// Independent arrow/wheel video jumps; persisted in encrypted settings.
+  final int keyboardWheelSeekSeconds;
+  final int keyboardWheelCtrlSeekSeconds;
+  // Fail safely when loading malformed or older configuration.
+  static int _readSeekSeconds(Object? value, int fallback) =>
+      value is num && value.isFinite ? value.toInt().clamp(1, 600) : fallback;
+
   final bool loopPlaylist;
   final ThumbnailGenerationStrategy thumbnailGenerationStrategy;
   final double thumbnailFramePosition;
@@ -151,6 +158,8 @@ class MediaViewerToolbarConfig {
     this.doubleTapPlayPause = true,
     this.doubleTapSkipEnabled = true,
     this.doubleTapSkipSeconds = 5,
+    this.keyboardWheelSeekSeconds = 5,
+    this.keyboardWheelCtrlSeekSeconds = 30,
     this.loopPlaylist = true,
     this.thumbnailGenerationStrategy = ThumbnailGenerationStrategy.hybrid,
     this.thumbnailFramePosition = 0.12,
@@ -231,6 +240,8 @@ class MediaViewerToolbarConfig {
     bool? doubleTapPlayPause,
     bool? doubleTapSkipEnabled,
     int? doubleTapSkipSeconds,
+    int? keyboardWheelSeekSeconds,
+    int? keyboardWheelCtrlSeekSeconds,
     bool? loopPlaylist,
     ThumbnailGenerationStrategy? thumbnailGenerationStrategy,
     double? thumbnailFramePosition,
@@ -286,6 +297,10 @@ class MediaViewerToolbarConfig {
     doubleTapPlayPause: doubleTapPlayPause ?? this.doubleTapPlayPause,
     doubleTapSkipEnabled: doubleTapSkipEnabled ?? this.doubleTapSkipEnabled,
     doubleTapSkipSeconds: doubleTapSkipSeconds ?? this.doubleTapSkipSeconds,
+    keyboardWheelSeekSeconds:
+        keyboardWheelSeekSeconds ?? this.keyboardWheelSeekSeconds,
+    keyboardWheelCtrlSeekSeconds:
+        keyboardWheelCtrlSeekSeconds ?? this.keyboardWheelCtrlSeekSeconds,
     loopPlaylist: loopPlaylist ?? this.loopPlaylist,
     thumbnailGenerationStrategy:
         thumbnailGenerationStrategy ?? this.thumbnailGenerationStrategy,
@@ -384,6 +399,8 @@ class MediaViewerToolbarConfig {
     'doubleTapPlayPause': doubleTapPlayPause,
     'doubleTapSkipEnabled': doubleTapSkipEnabled,
     'doubleTapSkipSeconds': doubleTapSkipSeconds,
+    'keyboardWheelSeekSeconds': keyboardWheelSeekSeconds,
+    'keyboardWheelCtrlSeekSeconds': keyboardWheelCtrlSeekSeconds,
     'loopPlaylist': loopPlaylist,
     'thumbnailGenerationStrategy': thumbnailGenerationStrategy.name,
     'thumbnailFramePosition': thumbnailFramePosition,
@@ -573,6 +590,9 @@ class MediaViewerToolbarConfig {
       doubleTapSkipSeconds: ((j['doubleTapSkipSeconds'] as num?)?.toInt() ?? 5)
           .clamp(1, 600)
           .toInt(),
+      keyboardWheelSeekSeconds: _readSeekSeconds(j['keyboardWheelSeekSeconds'], 5),
+      keyboardWheelCtrlSeekSeconds: _readSeekSeconds(
+        j['keyboardWheelCtrlSeekSeconds'], 30),
       loopPlaylist: j['loopPlaylist'] as bool? ?? true,
       thumbnailGenerationStrategy: ThumbnailGenerationStrategy.fromJson(
         j['thumbnailGenerationStrategy'] as String?,

@@ -21,9 +21,10 @@ class _FakePathProviderPlatform extends PathProviderPlatform
 
 class _FakeCryptoApi implements VaultCryptoApi {
   @override
-  Future<bool> clearDerivedKey(String filePath,
-          {bool removeExpiry = false}) async =>
-      true;
+  Future<bool> clearDerivedKey(
+    String filePath, {
+    bool removeExpiry = false,
+  }) async => true;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -38,6 +39,15 @@ class _RecordingSecureStorage extends AppSecureStorage {
 
   @override
   Future<String?> read({required String key}) async => data[key];
+
+  @override
+  Future<bool> writeVerified({
+    required String key,
+    required String value,
+  }) async {
+    await write(key: key, value: value);
+    return true;
+  }
 
   @override
   Future<void> write({required String key, required String? value}) async {
@@ -170,4 +180,19 @@ void main() {
 
     expect(storage.prefixRequests, hasLength(1));
   });
+  test(
+    'malformed protected catalog cannot erase records or credentials',
+    () async {
+      storage.data['private_metadata_containers_v1'] = '[0]';
+      final original = Map<String, String>.of(storage.data);
+      final repo = coldRepo();
+      expect(await repo.loadAll(), isEmpty);
+      await expectLater(repo.remove(uri), throwsStateError);
+      await expectLater(
+        repo.save(const ContainerRecord(uri: uri, label: 'New')),
+        throwsStateError,
+      );
+      expect(storage.data, original);
+    },
+  );
 }

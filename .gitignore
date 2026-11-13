@@ -58,3 +58,6 @@ android/**/.cxx/
 **/android/key.properties
 **/android/app/*.jks
 **/android/app/*.keystore
+
+# Generated Kotlin compiler session state
+android/.kotlin/

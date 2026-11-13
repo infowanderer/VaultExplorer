@@ -1,3 +1,8 @@
+import 'package:vaultexplorer/features/photo_sorter/deletion_policy.dart';
+import 'package:vaultexplorer/features/photo_sorter/media_organization_host.dart';
+import 'package:vaultexplorer/features/photo_sorter/organizer.dart';
+import 'package:vaultexplorer/features/photo_sorter/organizer_destination_picker.dart';
+import 'package:vaultexplorer/core/config/application_identity.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
@@ -77,6 +82,8 @@ import 'package:vaultexplorer/features/settings/file_manager_toolbar_settings_co
 import 'package:vaultexplorer/data/models/media_viewer_action.dart';
 import 'package:vaultexplorer/data/models/media_viewer_toolbar_config.dart';
 import 'package:vaultexplorer/features/browser/viewer/widgets/media_viewer_toolbar_settings_screen.dart';
+import 'media_input.dart';
+import 'media_seek_stepper.dart';
 
 export 'package:vaultexplorer/features/browser/viewer/media_viewer_session_controller.dart'
     show VideoPlaybackMode;
@@ -326,6 +333,8 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen>
   bool _zoomInteractionLock = false;
   String? _zoomLockFile;
 
+  final _inputZoom = MediaZoomController();
+  final _inputSeek = MediaSeekStepper();
   int _activeMenuCount = 0;
   late bool _wasEmpty;
 
@@ -1535,6 +1544,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen>
   }
 
   void _onActiveVideoControllerChanged() {
+    _inputSeek.reset();
     // A new controller means a freshly initialised native player, which has
     // no A-B loop registered, so drop the one shown here too.
     _abLoopNotifier.value = AbLoopState.empty;
@@ -1682,7 +1692,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen>
   String _contentUriFor(String fileName) {
     final volId = widget.container.volId;
     final escapedPath = Uri.encodeComponent(fileName);
-    return 'content://com.aeidolon.vaultexplorer.documents/document/'
+    return 'content://${ApplicationIdentity.documentsAuthority}/document/'
         '$volId%3Afile%3A$escapedPath';
   }
 
@@ -1833,6 +1843,114 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen>
       _sessionController.setIsAutoAdvancing(false);
     }
   }
+
+  /// Escape explicitly ends playback instead of handing it to a floating player.
+  bool _exitFromEscape() {
+    if (_closing) return true;
+    if (_activeMenuCount > 0 && !_isEditingLayout) return false;
+    if (_controlsLocked) {
+      _lockNudge.value++;
+      return true;
+    }
+    if (_isEditingLayout) {
+      setState(() => _isEditingLayout = false);
+      _updateSwipePhysics();
+      _menuClosed();
+      _startHideTimer();
+      return true;
+    }
+    _closing = true;
+    _inputSeek.reset();
+    _cancelSlideshowTimer();
+    _sessionController.setAutoAdvance(false);
+    final controller = _playbackManager.activeController;
+    if (controller != null) {
+      unawaited(controller.pause().catchError((Object _) {
+        // Route disposal still releases the player if its storage disconnected.
+      }));
+    }
+    // No background/floating handoff: dispose releases the native player.
+    Navigator.of(context).pop();
+    return true;
+  }
+
+  bool _handleMediaInput(
+    MediaInputCommand command,
+    MediaViewerToolbarConfig config,
+  ) {
+    if (_controlsLocked ||
+        _isEditingLayout ||
+        _activeMenuCount > 0 ||
+        _multiTouchLock ||
+        _playlistController.isEmpty ||
+        _closing) {
+      return false;
+    }
+    final control =
+        command != MediaInputCommand.backward &&
+        command != MediaInputCommand.forward;
+    final forward =
+        command == MediaInputCommand.forward ||
+        command == MediaInputCommand.controlForward ||
+        command == MediaInputCommand.controlWheelDown;
+    if (MediaViewerConstants.isImage(_playlistController.currentFile)) {
+      if (!control) {
+        if (forward) {
+          _navigateToNext(animate: false);
+        } else {
+          _navigateToPrev(animate: false);
+        }
+      } else {
+        final zoomIn =
+            command == MediaInputCommand.controlForward ||
+            command == MediaInputCommand.controlWheelUp;
+        if (_scrollMode.isContinuous) {
+          _continuousZoomAnimationController?.stop();
+          _continuousTransformationController.value = steppedMediaZoom(
+            _continuousTransformationController.value,
+            Size(_viewportWidth, _viewportHeight),
+            zoomIn ? 1 : -1,
+            maxScale: MediaViewerConstants.maxImageZoom,
+          );
+          _onZoomInteractionChanged(
+            (_getMatrixScale(_continuousTransformationController.value) - 1)
+                    .abs() <
+                .01,
+          );
+        } else {
+          _inputZoom.step(zoomIn ? 1 : -1);
+        }
+      }
+      return true;
+    }
+    final controller = _playbackManager.activeController;
+    if (controller == null ||
+        !controller.value.isInitialized ||
+        _playbackManager.currentFileName != _playlistController.currentFile) {
+      return false;
+    }
+    final seconds = control
+        ? config.keyboardWheelCtrlSeekSeconds
+        : config.keyboardWheelSeekSeconds;
+    _inputSeek.step(
+      owner: controller,
+      position: controller.value.position,
+      duration: controller.value.duration,
+      delta: Duration(seconds: forward ? seconds : -seconds),
+      seek: (target) async {
+        if (!mounted || _playbackManager.activeController != controller) return;
+        await controller.seekTo(target);
+      },
+      onError: () {
+        if (mounted) _showInputSeekError();
+      },
+    );
+    return true;
+  }
+
+  void _showInputSeekError() => ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(const SnackBar(content: Text('Could not seek this video.')));
 
   void _navigateToNext({bool animate = true}) {
     final index = _playlistController.currentIndex;
@@ -2338,9 +2456,10 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen>
   }
 
   Future<void> _deleteCurrentFile() async {
+    final fileToDelete = _playlistController.currentFile;
     _menuOpened();
     final cs = Theme.of(context).colorScheme;
-    final confirm = await showDialog<bool>(
+    final confirm = await allowMediaDeletion(context, () async => await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.l10n.deleteFileDialogTitle),
@@ -2357,12 +2476,10 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen>
           ),
         ],
       ),
-    );
+    ) == true);
     _menuClosed();
 
-    if (confirm != true) return;
-
-    final fileToDelete = _playlistController.currentFile;
+    if (!confirm || !mounted) return;
     bool success = false;
     try {
       success = await _fileIoApi.deleteFile(widget.container, fileToDelete);
@@ -3600,6 +3717,8 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen>
 
   @override
   void dispose() {
+    _inputZoom.dispose();
+    _inputSeek.reset();
     unawaited(_saveActivePlaybackPosition());
     unawaited(_mediaSessionSubscription!.cancel());
     _engineEvents.removeUsbContainerDetachedListener(_onContainerDetached);
@@ -3714,6 +3833,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen>
               key: ValueKey(
                 'image_${fileName}_${_imageReloadEpoch[fileName] ?? 0}',
               ),
+              inputZoom: _inputZoom,
               fileName: fileName,
               prefetchedBytes: prefetchedBytes,
               container: widget.container,
@@ -3978,7 +4098,10 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen>
       );
     }
 
-    return PopScope(
+    Widget buildViewer(Widget? organizationControls) => MediaInputScope(
+      onExit: _exitFromEscape,
+      onCommand: (command) => _handleMediaInput(command, mediaViewerConfig),
+      child: PopScope(
       // Always intercepted: the only things that reach this callback with
       // didPop == false are the person's own back presses (maybePop), which
       // is how a deliberate close is told apart from one the app forces with
@@ -4141,6 +4264,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen>
                     : 1.0;
 
                 final continuousView = InteractiveViewer(
+                  scaleFactor: MediaInputScope.wheelScaleFactor(context),
                   transformationController: _continuousTransformationController,
                   minScale: effectiveMinScale,
                   maxScale: MediaViewerConstants.maxImageZoom,
@@ -4591,6 +4715,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen>
                                           ),
                                   ),
                                   MediaViewerBottomControls(
+                                    organizationControls: organizationControls,
                                     playlistController: _playlistController,
                                     playbackManager: _playbackManager,
                                     videoProgressNotifier:
@@ -4645,6 +4770,19 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen>
       ),
       ),
     ),
-  );
+  ));
+    final current = organizationPath(widget.container.uri, _playlistController.currentFile);
+    if (widget.container.isLocalStorage && !widget.isArchivePreview && !widget.isLibraryPlayback && current != null) {
+      return MediaOrganizationHost(
+        root: widget.container.uri, folder: organizationFolder(current),
+        files: _playlistController.playlist.map((file) => organizationPath(widget.container.uri, file)).whereType<String>().toList(),
+        selected: [current], bridge: OrganizerBridge(ref.read(vaultEngineChannelProvider)),
+        enabled: !_controlsLocked && !_isEditingLayout, overlay: true,
+        pickDestination: (bridge) => pickOrganizerDestination(context, ref.read(vaultLifecycleApiProvider), bridge),
+        builder: (_, model, controls) => buildViewer(!_controlsLocked && !_isEditingLayout ? controls : null),
+      );
+    }
+    return buildViewer(null);
+
   }
 }

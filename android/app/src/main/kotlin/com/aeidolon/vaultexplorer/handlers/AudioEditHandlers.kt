@@ -263,6 +263,11 @@ class AudioEditHandlers(
      * instead of copying; the output is then always `.m4a`).
      */
     fun handleExport(call: MethodCall, result: MethodChannel.Result) {
+        if (!com.aeidolon.vaultexplorer.privacy.PlaintextScratch.allowed) {
+            result.error("PRIVACY_BLOCKED", com.aeidolon.vaultexplorer.privacy.PlaintextScratch.MESSAGE, null)
+            return
+        }
+
         val volId = call.argument<Number>("volId")?.toInt()
         val filePath = call.argument<String>("filePath")
         val isLocal = call.argument<Boolean>("isLocalStorage") ?: false
@@ -340,7 +345,7 @@ class AudioEditHandlers(
                         throw LosslessAudioCutter.CutCancelledException()
                     }
 
-                    val temp = File.createTempFile(TEMP_PREFIX, TEMP_SUFFIX, activity.cacheDir)
+                    val temp = com.aeidolon.vaultexplorer.privacy.PlaintextScratch.tempFile(TEMP_PREFIX, TEMP_SUFFIX, activity.cacheDir)
                     tempFiles.add(temp)
 
                     LosslessAudioCutter.cut(

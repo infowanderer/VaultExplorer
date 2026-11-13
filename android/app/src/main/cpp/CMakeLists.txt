@@ -38,6 +38,11 @@ else()
     set(OPENSSL_NO_ASM OFF CACHE BOOL "" FORCE)
 endif()
 
+# Dependency test/benchmark executables are not Android application targets.
+# Keep host-side regression tests available in their existing NOT ANDROID path.
+if(ANDROID)
+    set(BUILD_TESTING OFF CACHE BOOL "Skip dependency test suites in APK builds" FORCE)
+endif()
 FetchContent_MakeAvailable(boringssl)
 
 

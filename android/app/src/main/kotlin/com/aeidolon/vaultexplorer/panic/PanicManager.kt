@@ -1,5 +1,7 @@
 package com.aeidolon.vaultexplorer.panic
 
+import com.aeidolon.vaultexplorer.ProviderAuthorities
+
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -23,7 +25,7 @@ import com.aeidolon.vaultexplorer.service.VaultKeepAliveService
 object PanicManager {
 
     private const val TAG = "PanicManager"
-    private const val CONTAINER_DOCUMENTS_AUTHORITY = "com.aeidolon.vaultexplorer.documents"
+    private val CONTAINER_DOCUMENTS_AUTHORITY = ProviderAuthorities.DOCUMENTS
     private val mainHandler = Handler(Looper.getMainLooper())
     private val runningGuard = AtomicBoolean(false)
 
@@ -61,6 +63,7 @@ object PanicManager {
             VeLog.w(TAG) { "execute($tier, source=$source): ignored -- a panic wipe is already in progress" }
             return PanicResult(tier, success = false, error = "already_in_progress")
         }
+        com.aeidolon.vaultexplorer.organizer.OrganizerHandlers.invalidateSessions()
         VeLog.i(TAG) { "execute($tier, source=$source): starting" }
         val appContext = context.applicationContext
         return try {

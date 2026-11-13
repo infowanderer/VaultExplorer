@@ -1,5 +1,7 @@
 package com.aeidolon.vaultexplorer.container
 
+import com.aeidolon.vaultexplorer.ProviderAuthorities
+
 import android.content.ContentProvider
 import android.content.ContentValues
 import android.content.Context
@@ -73,7 +75,7 @@ import com.aeidolon.vaultexplorer.share.FolderZipPipe
 class ContainerShareProvider : ContentProvider() {
 
     companion object {
-        const val AUTHORITY = "com.aeidolon.vaultexplorer.shareprovider"
+        val AUTHORITY = ProviderAuthorities.SHARE
         private const val TAG = "ContainerShareProvider"
 
           /**

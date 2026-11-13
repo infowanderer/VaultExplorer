@@ -84,13 +84,14 @@ object ContainerFileSystem {
         srcVolId: Int, srcPath: String, destVolId: Int, destPath: String, opId: Int,
     ): Boolean {
         val total = getFileSize(srcVolId, srcPath)
-        if (total <= 0L) {
-            // Empty (the Dart side normally handles that before it gets here)
-            // or unreadable: nothing worth streaming, so keep the previous
-            // path. An empty file has no plaintext to leak to a temp file.
-            return ContainerEngine.copyFileViaBackend(srcVolId, srcPath, destVolId, destPath, opId,
-                extract = { path, dest -> extractFileLocked(srcVolId, path, dest, opId) },
-                writeBack = { path, source -> writeBackFile(destVolId, path, source, opId) })
+        if (total < 0L) return false
+        if (total == 0L) {
+            val parent = srcPath.substringBeforeLast('/', "")
+            val name = srcPath.substringAfterLast('/')
+            val exists = listDirectory(srcVolId, parent)?.any {
+                com.aeidolon.vaultexplorer.DirEntryWire.parse(it)?.let { e -> e.name == name && !e.isDir } == true
+            } == true
+            if (!exists) return false
         }
 
         val input = VaultCopyInputStream(
@@ -135,6 +136,7 @@ object ContainerFileSystem {
         val buffer = ByteArray(VaultCopyInputStream.DEFAULT_CHUNK_BYTES)
         try {
             var offset = 0L
+            if (total == 0L && !writeFileChunk(volId, path, 0, ByteArray(0))) return false
             while (offset < total) {
                 val n = input.read(buffer, 0, minOf(buffer.size.toLong(), total - offset).toInt())
                 if (n <= 0) return false

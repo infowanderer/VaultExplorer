@@ -165,6 +165,8 @@ internal class SegmentedVideoEngine(
 
     /** Builds the encoders and the microphone. Throws if the device cannot do it. */
     fun prepare() {
+        com.aeidolon.vaultexplorer.privacy.PlaintextScratch.requireAllowed()
+
         try {
             prepareVideo()
             if (recordAudio) prepareAudio()
@@ -721,7 +723,7 @@ internal class SegmentedVideoEngine(
         private val info = MediaCodec.BufferInfo()
 
         override fun openPart(index: Int, startUs: Long) {
-            val target = File.createTempFile(tempPrefix, tempSuffix, cacheDir)
+            val target = com.aeidolon.vaultexplorer.privacy.PlaintextScratch.tempFile(tempPrefix, tempSuffix, cacheDir)
             var m: MediaMuxer? = null
             try {
                 m = MediaMuxer(target.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)

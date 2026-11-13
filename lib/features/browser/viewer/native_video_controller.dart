@@ -111,7 +111,7 @@ class NativeVideoController extends ValueNotifier<NativeVideoValue> {
   }
 
   /// Auxiliary constructor for parsing content URI string:
-  /// `content://com.aeidolon.vaultexplorer.documents/document/{volId}%3Afile%3A{escapedPath}`
+  /// `content://{applicationId}.documents/document/{volId}%3Afile%3A{escapedPath}`
   factory NativeVideoController.fromUri({
     required String contentUriString,
     bool autoPlay = false,

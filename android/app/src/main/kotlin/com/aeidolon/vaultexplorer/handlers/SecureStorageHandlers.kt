@@ -91,6 +91,7 @@ class SecureStorageHandlers(
      * key that was deleted or regenerated underneath us (e.g. by a panic
      * wipe) can't leave this process failing every operation until restart.
      */
+    @Synchronized
     private fun <T> withMasterKey(block: (SecretKey) -> T): T? {
         for (attempt in 0..1) {
             try {
@@ -133,6 +134,15 @@ class SecureStorageHandlers(
         activity.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
 
+    private val organizerJournal by lazy {
+        com.aeidolon.vaultexplorer.organizer.OrganizerJournalFiles(activity, ::encrypt, ::decrypt)
+    }
+    @Synchronized
+    fun readOrganizerRecord(key: String): String? = organizerJournal.read(key)
+    @Synchronized
+    fun writeOrganizerRecord(key: String, value: String) = organizerJournal.write(key, value)
+    fun organizerRecordKeys(): Set<String> = organizerJournal.keys()
+
     fun handleRead(call: MethodCall, result: MethodChannel.Result) {
         val key = call.argument<String>("key")
         if (key == null) {
@@ -172,7 +182,11 @@ class SecureStorageHandlers(
     }
 
     fun handleDeleteAll(call: MethodCall, result: MethodChannel.Result) {
-        runOffMainThread(result) { prefs.edit().clear().commit() }
+        com.aeidolon.vaultexplorer.organizer.OrganizerHandlers.invalidateSessions()
+        runOffMainThread(result) {
+            val cleared = prefs.edit().clear().commit()
+            com.aeidolon.vaultexplorer.organizer.OrganizerJournalFiles.clear(activity) && cleared
+        }
     }
 
     /**

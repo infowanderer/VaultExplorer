@@ -166,6 +166,7 @@ internal object NativeEngine {
     @JvmStatic external fun extractFile(targetFileName: String, destPath: String, volId: Int, opId: Int = 0): Boolean
     @JvmStatic external fun deleteFile(targetFileName: String, volId: Int): Boolean
     @JvmStatic external fun createDirectory(dirPath: String, volId: Int): Boolean
+    @JvmStatic external fun organizerRenameNoReplace(source: ByteArray, destination: ByteArray): Boolean
     @JvmStatic external fun renameFile(oldPath: String, newPath: String, volId: Int): Boolean
     // opId <= 0 means "no progress reporting wanted" (same convention as
     // reportSplitJoinProgress) -- native no-ops the callback in that case.
