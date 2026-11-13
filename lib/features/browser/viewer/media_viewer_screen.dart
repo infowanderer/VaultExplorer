@@ -1840,6 +1840,36 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen>
     }
   }
 
+  /// Escape explicitly ends playback instead of handing it to a floating player.
+  bool _exitFromEscape() {
+    if (_closing) return true;
+    if (_activeMenuCount > 0 && !_isEditingLayout) return false;
+    if (_controlsLocked) {
+      _lockNudge.value++;
+      return true;
+    }
+    if (_isEditingLayout) {
+      setState(() => _isEditingLayout = false);
+      _updateSwipePhysics();
+      _menuClosed();
+      _startHideTimer();
+      return true;
+    }
+    _closing = true;
+    _inputSeek.reset();
+    _cancelSlideshowTimer();
+    _sessionController.setAutoAdvance(false);
+    final controller = _playbackManager.activeController;
+    if (controller != null) {
+      unawaited(controller.pause().catchError((Object _) {
+        // Route disposal still releases the player if its storage disconnected.
+      }));
+    }
+    // No background/floating handoff: dispose releases the native player.
+    Navigator.of(context).pop();
+    return true;
+  }
+
   bool _handleMediaInput(
     MediaInputCommand command,
     MediaViewerToolbarConfig config,
@@ -4066,6 +4096,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen>
     }
 
     return MediaInputScope(
+      onExit: _exitFromEscape,
       onCommand: (command) => _handleMediaInput(command, mediaViewerConfig),
       child: PopScope(
       // Always intercepted: the only things that reach this callback with

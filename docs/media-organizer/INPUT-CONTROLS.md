@@ -6,7 +6,7 @@
 | Wheel up / down over media | Previous / next photo | Back / forward one normal jump |
 | Ctrl + Left / Right | Zoom out / in | Back / forward one Ctrl jump |
 | Ctrl + wheel up / down over media | Zoom in / out | Back / forward one Ctrl jump |
-| Escape in photo sorter | Return to the underlying gallery | Not a new video shortcut |
+| Escape | Stop slideshow and return to gallery; exit sorter with its discard safeguard | Stop playback and return to gallery |
 
 Normal and Ctrl video jumps default to **5 and 30 seconds**. Change them separately
 in **Media Player Controls → Playback & Gestures**, in the keyboard/mouse tiles
@@ -96,3 +96,27 @@ Observed checks for this input update:
 - APK: 29,447,914 bytes; SHA-256 `d9c9b2d2e188bfec657ea2e1d5328b9843dd35a7ba3f525279ae48f97400fd9d`.
 - No native source changed, so Android Gradle/native test suites were not rerun
   for this Dart-only update. Existing native binaries are verified retained bytes.
+
+## Escape follow-up
+
+Escape now closes the main image/slideshow and video/audio viewer. Slideshow
+advance is disabled, pending input seeks are dropped and the active player is
+paused before route disposal releases it. Escape deliberately does not hand the
+player to a floating/background session. The normal Android Back and swipe-close
+preferences are unchanged. Open dialogs handle Escape first; locked controls
+remain locked, and layout editing closes before the media route. Holding Escape
+cannot repeatedly invoke the exit callback. Modified Escape combinations are not
+bound. No cache or persistent metadata path was added.
+
+Focused input and sorter regression checks: 13 passed, including Escape from a
+focused toolbar control, repeated Escape, Ctrl+Escape and dialog isolation. The
+privacy guards, APK-checker tests and code-boundary checks also passed. These are
+host checks, not a claim of real tablet playback validation. This follow-up uses
+the previously delivered keyboard/wheel APK as its exact guarded native base.
+
+Escape-update APK: 29,447,914 bytes, SHA-256
+`cec31adfcaafeb651e843e34cd97e4584a41f60862f3b595295cdcbc0b034b48`. Signed APK boundary checks and 16 KiB ZIP alignment passed;
+the package and signing certificate match the preceding preview. ARM64 release
+Dart/AOT compilation passed. Focused source analysis found no errors (existing
+warnings/info remain). The full Flutter and native/Gradle suites were not rerun
+for this small follow-up; native/Android binaries are verified retained bytes.

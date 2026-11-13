@@ -17,9 +17,11 @@ class MediaInputScope extends StatefulWidget {
     super.key,
     required this.onCommand,
     required this.child,
+    this.onExit,
   });
   final bool Function(MediaInputCommand command) onCommand;
   final Widget child;
+  final bool Function()? onExit;
 
   /// InteractiveViewer scales wheel input immediately, before signal resolution.
   /// An infinite divisor makes mouse-wheel scale exactly 1, preserving touch
@@ -64,6 +66,22 @@ class _MediaInputScopeState extends State<MediaInputScope> {
       focusNode: _focus,
       autofocus: true,
       onKeyEvent: (node, event) {
+        // Escape belongs to the media route even when a toolbar button has
+        // focus. Dialogs occupy their own route and retain Escape dismissal.
+        if (event.logicalKey == LogicalKeyboardKey.escape &&
+            !HardwareKeyboard.instance.isControlPressed &&
+            !HardwareKeyboard.instance.isAltPressed &&
+            !HardwareKeyboard.instance.isMetaPressed &&
+            !HardwareKeyboard.instance.isShiftPressed &&
+            widget.onExit != null &&
+            ModalRoute.of(context)?.isCurrent != false) {
+          if (event is KeyRepeatEvent || event is KeyUpEvent) {
+            return KeyEventResult.handled;
+          }
+          return widget.onExit!()
+              ? KeyEventResult.handled
+              : KeyEventResult.ignored;
+        }
         // Let focused fields, sliders, buttons and dialogs keep their keys.
         if (!node.hasPrimaryFocus || event is KeyUpEvent) {
           return KeyEventResult.ignored;

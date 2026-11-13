@@ -5,6 +5,74 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:vaultexplorer/features/browser/viewer/media_input.dart';
 
 void main() {
+  testWidgets(
+    'Escape exits a media route once, including with a focused control',
+    (tester) async {
+      var exits = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaInputScope(
+            onCommand: (_) => true,
+            onExit: () {
+              exits++;
+              return true;
+            },
+            child: Scaffold(
+              body: TextButton(onPressed: () {}, child: const Text('Control')),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.escape);
+      await tester.sendKeyRepeatEvent(LogicalKeyboardKey.escape);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.escape);
+      expect(exits, 1);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      expect(exits, 1);
+    },
+  );
+
+  testWidgets(
+    'Escape dismisses a dialog without exiting the covered media route',
+    (tester) async {
+      var exits = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaInputScope(
+            onCommand: (_) => true,
+            onExit: () {
+              exits++;
+              return true;
+            },
+            child: Builder(
+              builder: (context) => Scaffold(
+                body: TextButton(
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (_) => const AlertDialog(content: Text('Dialog')),
+                  ),
+                  child: const Text('Open'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.text('Dialog'), findsNothing);
+      expect(exits, 0);
+    },
+  );
+
   testWidgets('arrows, repeats and Ctrl dispatch once; key-up does not', (
     tester,
   ) async {
