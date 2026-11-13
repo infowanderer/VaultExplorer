@@ -1,11 +1,61 @@
 import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vaultexplorer/features/photo_sorter/photo_sorter_screen.dart';
 
 void main() {
+  testWidgets(
+    'Escape returns directly to gallery; staged decisions require confirmation',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                child: const Text('Gallery'),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => PhotoSorterScreen(
+                      photos: const ['a.jpg', 'b.jpg'],
+                      folderName: 'Vacation',
+                      loadPreview: (_, _) async => null,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Gallery'));
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.text('Gallery'), findsOneWidget);
+      expect(find.byType(PhotoSorterScreen), findsNothing);
+      await tester.tap(find.text('Gallery'));
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit1);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.text('Discard staged decisions?'), findsOneWidget);
+      await tester.tap(find.text('Stay'));
+      await tester.pumpAndSettle();
+      expect(find.byType(PhotoSorterScreen), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Discard'));
+      await tester.pumpAndSettle();
+      expect(find.text('Gallery'), findsOneWidget);
+    },
+  );
+
   Future<void> open(WidgetTester tester) async {
     await tester.binding.setSurfaceSize(const Size(1280, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -20,6 +70,49 @@ void main() {
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets(
+    'full-photo arrows and wheel navigate; Ctrl zooms without navigation',
+    (tester) async {
+      await open(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(find.text('2 / 3'), findsOneWidget);
+      final viewer = tester.widget<InteractiveViewer>(
+        find.byType(InteractiveViewer),
+      );
+      final transform = viewer.transformationController!;
+      final canvas = tester.getCenter(find.byType(InteractiveViewer));
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(transform.value.getMaxScaleOnAxis(), closeTo(1.2, .00001));
+      await tester.sendEventToBinding(
+        PointerScrollEvent(
+          position: canvas,
+          scrollDelta: const Offset(0, -120),
+          kind: PointerDeviceKind.mouse,
+        ),
+      );
+      await tester.pump();
+      expect(transform.value.getMaxScaleOnAxis(), closeTo(1.44, .00001));
+      expect(find.text('2 / 3'), findsOneWidget);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendEventToBinding(
+        PointerScrollEvent(
+          position: canvas,
+          scrollDelta: const Offset(0, 120),
+          kind: PointerDeviceKind.mouse,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('3 / 3'), findsOneWidget);
+      expect(transform.value.isIdentity(), isTrue);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('tablet keyboard stages decisions and previews queue', (
     tester,

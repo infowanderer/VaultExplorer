@@ -16,6 +16,7 @@ import 'package:vaultexplorer/data/models/video_aspect_ratio_mode.dart';
 import 'package:vaultexplorer/features/browser/viewer/media_session_bridge.dart';
 import 'package:vaultexplorer/features/browser/viewer/widgets/media_viewer_action_glyph.dart';
 import 'package:vaultexplorer/features/settings/file_manager_toolbar_settings_controller.dart';
+import 'seek_seconds_button.dart';
 
 /// The settings sections for the Media Player Controls page, mirroring the
 /// master-detail / hub-and-spoke pattern used in [AppSettingsScreen].
@@ -1390,6 +1391,56 @@ class MediaViewerPlaybackSettingsScreen extends ConsumerWidget {
                         },
                       ),
                     ),
+                  ListTile(
+                    leading: Icon(Icons.keyboard, color: cs.primary),
+                    title: const Text('Keyboard & mouse: video jump'),
+                    trailing: SeekSecondsButton(
+                      seconds: mediaConfig.keyboardWheelSeekSeconds,
+                      label: 'Keyboard & mouse: video jump',
+                      onChanged: controller.setMediaViewerKeyboardWheelSeekSeconds,
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Left/right or wheel up/down · 1–600 seconds'),
+                        _SettingsSlider(
+                          value: mediaConfig.keyboardWheelSeekSeconds.toDouble(),
+                          min: 1,
+                          max: 600,
+                          divisions: 599,
+                          labelBuilder: (v) => '${v.round()}s',
+                          onChangeEnd: (v) => unawaited(
+                            controller.setMediaViewerKeyboardWheelSeekSeconds(v.round()),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ListTile(
+                    leading: Icon(Icons.keyboard_command_key, color: cs.primary),
+                    title: const Text('Keyboard & mouse: Ctrl video jump'),
+                    trailing: SeekSecondsButton(
+                      seconds: mediaConfig.keyboardWheelCtrlSeekSeconds,
+                      label: 'Keyboard & mouse: Ctrl video jump',
+                      onChanged: controller.setMediaViewerKeyboardWheelCtrlSeekSeconds,
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Hold Ctrl for a separate jump · Ctrl zooms photographs'),
+                        _SettingsSlider(
+                          value: mediaConfig.keyboardWheelCtrlSeekSeconds.toDouble(),
+                          min: 1,
+                          max: 600,
+                          divisions: 599,
+                          labelBuilder: (v) => '${v.round()}s',
+                          onChangeEnd: (v) => unawaited(
+                            controller.setMediaViewerKeyboardWheelCtrlSeekSeconds(v.round()),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   SwitchListTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                     value: mediaConfig.swipeToSeekEnabled,

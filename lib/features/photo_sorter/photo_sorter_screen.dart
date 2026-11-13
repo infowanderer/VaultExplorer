@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'sort_session.dart';
+import '../browser/viewer/media_input.dart';
 
 typedef PhotoPreviewLoader = Future<Uint8List?> Function(String path, int size);
 
@@ -31,6 +32,8 @@ class _PhotoSorterScreenState extends State<PhotoSorterScreen>
     with WidgetsBindingObserver {
   late final session = SortSession(widget.photos);
   final scroll = ScrollController();
+  final imageTransform = TransformationController();
+  Size imageViewport = Size.zero;
   final previewQueue = PriorityTaskQueue(2);
 
   Future<Uint8List?> loadPreview(String path, int size) async {
@@ -56,6 +59,7 @@ class _PhotoSorterScreenState extends State<PhotoSorterScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    imageTransform.dispose();
     scroll.dispose();
     super.dispose();
   }
@@ -71,7 +75,10 @@ class _PhotoSorterScreenState extends State<PhotoSorterScreen>
   }
 
   void navigate(int delta) {
-    setState(() => session.navigate(delta));
+    setState(() {
+      session.navigate(delta);
+      imageTransform.value = Matrix4.identity();
+    });
     if (!viewing && scroll.hasClients) {
       final top = (session.selected ~/ columns) * 180.0;
       final bottom = top + 180;
@@ -183,13 +190,7 @@ class _PhotoSorterScreenState extends State<PhotoSorterScreen>
               navigate(-columns),
           const SingleActivator(LogicalKeyboardKey.space): () =>
               setState(() => viewing = !viewing),
-          const SingleActivator(LogicalKeyboardKey.escape): () {
-            if (viewing) {
-              setState(() => viewing = false);
-            } else {
-              leave();
-            }
-          },
+          const SingleActivator(LogicalKeyboardKey.escape): leave,
           const SingleActivator(LogicalKeyboardKey.backspace): () =>
               setState(session.clearCurrent),
           for (var i = 0; i < widget.destinations.length && i < 9; i++)
@@ -255,14 +256,48 @@ class _PhotoSorterScreenState extends State<PhotoSorterScreen>
                           child: Text('No photographs in this folder.'),
                         )
                       : viewing
-                      ? InteractiveViewer(
-                          child: Center(
-                            child: _Preview(
-                              key: ValueKey('viewer-${session.current}'),
-                              path: session.current!,
-                              size: 1600,
-                              load: loadPreview,
-                            ),
+                      ? MediaInputScope(
+                          onCommand: (command) {
+                            if (command == MediaInputCommand.forward ||
+                                command == MediaInputCommand.backward) {
+                              navigate(
+                                command == MediaInputCommand.forward ? 1 : -1,
+                              );
+                            } else {
+                              final zoomIn =
+                                  command == MediaInputCommand.controlForward ||
+                                  command == MediaInputCommand.controlWheelUp;
+                              imageTransform.value = steppedMediaZoom(
+                                imageTransform.value,
+                                imageViewport,
+                                zoomIn ? 1 : -1,
+                              );
+                            }
+                            return true;
+                          },
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              imageViewport = constraints.biggest;
+                              return InteractiveViewer(
+                                scaleFactor: MediaInputScope.wheelScaleFactor(
+                                  context,
+                                ),
+                                transformationController: imageTransform,
+                                maxScale: 8,
+                                child: MediaPointerRegion(
+                                  child: Center(
+                                    child: _Preview(
+                                      key: ValueKey(
+                                        'viewer-${session.current}',
+                                      ),
+                                      path: session.current!,
+                                      size: 1600,
+                                      load: loadPreview,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                         )
                       : LayoutBuilder(
@@ -288,10 +323,13 @@ class _PhotoSorterScreenState extends State<PhotoSorterScreen>
                                   selected: index == session.selected,
                                   label: path.split('/').last,
                                   child: InkWell(
-                                    onTap: () =>
-                                        setState(() => session.select(index)),
+                                    onTap: () => setState(() {
+                                      session.select(index);
+                                      imageTransform.value = Matrix4.identity();
+                                    }),
                                     onDoubleTap: () => setState(() {
                                       session.select(index);
+                                      imageTransform.value = Matrix4.identity();
                                       viewing = true;
                                     }),
                                     child: Container(

@@ -33,6 +33,14 @@ Synthetic test photos can be generated without reading personal media:
 Pillow). The helper refuses an existing output archive and includes 12 drawn JPEG
 cards, an EXIF rotation case and one deliberately invalid JPEG.
 
+## Keyboard and mouse update
+
+The latest preview adds left/right and wheel photo navigation, Ctrl image zoom,
+independent normal/Ctrl video seek durations, and direct Escape-to-gallery in the
+photo sorter. See [input controls and validation](INPUT-CONTROLS.md) for exact
+mappings, settings, future command/contact-sheet plans and updated APK provenance.
+It installs over the preceding preview with the same package and certificate.
+
 ## What to exercise
 
 1. Use a disposable test folder on internal storage; open the browser's photo

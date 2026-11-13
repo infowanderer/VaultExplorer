@@ -78,6 +78,8 @@ import 'package:vaultexplorer/features/settings/file_manager_toolbar_settings_co
 import 'package:vaultexplorer/data/models/media_viewer_action.dart';
 import 'package:vaultexplorer/data/models/media_viewer_toolbar_config.dart';
 import 'package:vaultexplorer/features/browser/viewer/widgets/media_viewer_toolbar_settings_screen.dart';
+import 'media_input.dart';
+import 'media_seek_stepper.dart';
 
 export 'package:vaultexplorer/features/browser/viewer/media_viewer_session_controller.dart'
     show VideoPlaybackMode;
@@ -327,6 +329,8 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen>
   bool _zoomInteractionLock = false;
   String? _zoomLockFile;
 
+  final _inputZoom = MediaZoomController();
+  final _inputSeek = MediaSeekStepper();
   int _activeMenuCount = 0;
   late bool _wasEmpty;
 
@@ -1536,6 +1540,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen>
   }
 
   void _onActiveVideoControllerChanged() {
+    _inputSeek.reset();
     // A new controller means a freshly initialised native player, which has
     // no A-B loop registered, so drop the one shown here too.
     _abLoopNotifier.value = AbLoopState.empty;
@@ -1834,6 +1839,84 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen>
       _sessionController.setIsAutoAdvancing(false);
     }
   }
+
+  bool _handleMediaInput(
+    MediaInputCommand command,
+    MediaViewerToolbarConfig config,
+  ) {
+    if (_controlsLocked ||
+        _isEditingLayout ||
+        _activeMenuCount > 0 ||
+        _multiTouchLock ||
+        _playlistController.isEmpty ||
+        _closing) {
+      return false;
+    }
+    final control =
+        command != MediaInputCommand.backward &&
+        command != MediaInputCommand.forward;
+    final forward =
+        command == MediaInputCommand.forward ||
+        command == MediaInputCommand.controlForward ||
+        command == MediaInputCommand.controlWheelDown;
+    if (MediaViewerConstants.isImage(_playlistController.currentFile)) {
+      if (!control) {
+        if (forward) {
+          _navigateToNext(animate: false);
+        } else {
+          _navigateToPrev(animate: false);
+        }
+      } else {
+        final zoomIn =
+            command == MediaInputCommand.controlForward ||
+            command == MediaInputCommand.controlWheelUp;
+        if (_scrollMode.isContinuous) {
+          _continuousZoomAnimationController?.stop();
+          _continuousTransformationController.value = steppedMediaZoom(
+            _continuousTransformationController.value,
+            Size(_viewportWidth, _viewportHeight),
+            zoomIn ? 1 : -1,
+            maxScale: MediaViewerConstants.maxImageZoom,
+          );
+          _onZoomInteractionChanged(
+            (_getMatrixScale(_continuousTransformationController.value) - 1)
+                    .abs() <
+                .01,
+          );
+        } else {
+          _inputZoom.step(zoomIn ? 1 : -1);
+        }
+      }
+      return true;
+    }
+    final controller = _playbackManager.activeController;
+    if (controller == null ||
+        !controller.value.isInitialized ||
+        _playbackManager.currentFileName != _playlistController.currentFile) {
+      return false;
+    }
+    final seconds = control
+        ? config.keyboardWheelCtrlSeekSeconds
+        : config.keyboardWheelSeekSeconds;
+    _inputSeek.step(
+      owner: controller,
+      position: controller.value.position,
+      duration: controller.value.duration,
+      delta: Duration(seconds: forward ? seconds : -seconds),
+      seek: (target) async {
+        if (!mounted || _playbackManager.activeController != controller) return;
+        await controller.seekTo(target);
+      },
+      onError: () {
+        if (mounted) _showInputSeekError();
+      },
+    );
+    return true;
+  }
+
+  void _showInputSeekError() => ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(const SnackBar(content: Text('Could not seek this video.')));
 
   void _navigateToNext({bool animate = true}) {
     final index = _playlistController.currentIndex;
@@ -3601,6 +3684,8 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen>
 
   @override
   void dispose() {
+    _inputZoom.dispose();
+    _inputSeek.reset();
     unawaited(_saveActivePlaybackPosition());
     unawaited(_mediaSessionSubscription!.cancel());
     _engineEvents.removeUsbContainerDetachedListener(_onContainerDetached);
@@ -3715,6 +3800,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen>
               key: ValueKey(
                 'image_${fileName}_${_imageReloadEpoch[fileName] ?? 0}',
               ),
+              inputZoom: _inputZoom,
               fileName: fileName,
               prefetchedBytes: prefetchedBytes,
               container: widget.container,
@@ -3979,7 +4065,9 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen>
       );
     }
 
-    return PopScope(
+    return MediaInputScope(
+      onCommand: (command) => _handleMediaInput(command, mediaViewerConfig),
+      child: PopScope(
       // Always intercepted: the only things that reach this callback with
       // didPop == false are the person's own back presses (maybePop), which
       // is how a deliberate close is told apart from one the app forces with
@@ -4142,6 +4230,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen>
                     : 1.0;
 
                 final continuousView = InteractiveViewer(
+                  scaleFactor: MediaInputScope.wheelScaleFactor(context),
                   transformationController: _continuousTransformationController,
                   minScale: effectiveMinScale,
                   maxScale: MediaViewerConstants.maxImageZoom,
@@ -4646,6 +4735,6 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen>
       ),
       ),
     ),
-  );
+  ));
   }
 }
