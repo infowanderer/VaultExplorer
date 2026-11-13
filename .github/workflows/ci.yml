@@ -35,6 +35,11 @@ jobs:
           g++ -std=c++20 -Wall -Wextra -Werror tool/privacy/ram_scratch_test.cpp -o "$RUNNER_TEMP/ram-scratch-test"
           "$RUNNER_TEMP/ram-scratch-test"
 
+      - name: Check atomic no-overwrite organizer renames
+        run: |
+          g++ -std=c++20 -Wall -Wextra -Werror tool/privacy/no_replace_test.cpp -o "$RUNNER_TEMP/organizer-rename-test"
+          "$RUNNER_TEMP/organizer-rename-test"
+
   flutter_analyze_and_test:
     name: Flutter analyze & test
     runs-on: ubuntu-latest

@@ -1,7 +1,21 @@
 # Reduce external plaintext staging
 
-Changes are in the draft integration branch, not an installed Android release.
+Changes are in the draft integration branch and isolated test-signed preview,
+not a production release.
 No personal media or existing temporary files were modified or deleted in this development session. At runtime, the metadata migration described below can remove its verified legacy JSON files.
+
+## Photo workflow additions (checkpoint 61)
+
+Organizer sessions, destinations, reviews, tags and fingerprints use protected
+metadata records. Per-job journals and their atomic temporary/backup files are
+ciphertext under `noBackupFilesDir/organizer-journal-v1/`. These files are outside
+the media container and use the existing Android Keystore AES-GCM key, not the
+container passphrase. No new plaintext scratch path was added. User-selected
+media outputs and retained originals in source-side Trash inherit their storage's
+encryption. See [PHOTO-WORKFLOW.md](PHOTO-WORKFLOW.md) for exact boundaries and
+remaining device validation. The transfer discussion below describes the earlier
+host export hardening; the new organizer additionally performs full SHA-256
+source/destination read-back verification.
 
 ## Removed staging paths
 

@@ -6,7 +6,13 @@
 
 Mount, browse, and manage encrypted containers on Android without a PC.
 
-VaultExplorer opens VeraCrypt, LUKS, BitLocker, VHD/VHDX, Cryptomator, gocryptfs, and CryFS volumes. A native C++ engine decrypts in memory where possible, and the app has no internet permission. Operations that need a scratch file (video recording, exports, archive work) use the app's private cache and zero-wipe it afterwards.
+VaultExplorer opens VeraCrypt, LUKS, BitLocker, VHD/VHDX, Cryptomator, gocryptfs, and CryFS volumes. A native C++ engine decrypts in memory where possible, and the release app has no internet permission. This integration branch enforces a strict plaintext-scratch policy: scratch-dependent recording, archive and edit-export actions are blocked rather than writing a plaintext cache copy. See [privacy boundaries](docs/media-organizer/PLAINTEXT-WRITES.md).
+
+The Android **Media Organizer Preview** now includes a protected photo workflow:
+named destinations, staged verified transfers, guarded Trash/undo/recovery, saved
+reviews, stars and tags. See [workflow, limitations and roadmap](docs/media-organizer/PHOTO-WORKFLOW.md).
+The inherited host feature list below does not mean every scratch-dependent tool
+is enabled in this privacy-focused preview.
 
 ## Screenshots
 
@@ -72,7 +78,7 @@ Filesystems: FAT12/16/32, exFAT, NTFS, ext2/3/4.
 
 ## Development branch status
 
-This branch contains an uninstalled tablet sorting preview and strict privacy
+This branch contains an experimental tablet photo organizer and strict privacy
 hardening. The upstream release APKs linked below do **not** contain these changes.
 Scratch-dependent archive, recording and edit-export workflows are intentionally
 blocked. Review [the privacy report](docs/media-organizer/PLAINTEXT-WRITES.md) for

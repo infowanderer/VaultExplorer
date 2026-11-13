@@ -57,11 +57,30 @@ class NoStagingTests(unittest.TestCase):
         for path in ('lib/data/services/container_repository.dart',
                      'lib/data/services/external_storage_repository.dart',
                      'lib/data/services/discrete_mode_repository.dart',
+                     'lib/features/photo_sorter/organizer.dart',
                      'lib/features/decoy/local/decoy_local_marks_service.dart'):
             source = (ROOT / path).read_text()
             self.assertIn('SecureMetadataStore', source)
             self.assertNotIn('writeAsString(', source)
             self.assertNotIn('writeAsBytes(', source)
+
+    def test_organizer_streams_never_stage_or_permanently_delete_media(self):
+        for path in ('organizer/OrganizerTransfer.kt', 'organizer/RawOrganizerFiles.kt',
+                     'organizer/AndroidOrganizerFiles.kt'):
+            source = self.assert_no_staging(path)
+            for forbidden in ('Files.delete(', 'deleteDocument(', '.delete(', 'deleteRecursively('):
+                self.assertNotIn(forbidden, source, f'{path} introduced permanent media deletion')
+        saf = (NATIVE / 'organizer/AndroidOrganizerFiles.kt').read_text()
+        self.assertIn('com.android.externalstorage.documents', saf)
+
+    def test_organizer_atomic_journal_writes_ciphertext_in_private_storage(self):
+        source = self.assert_no_staging('organizer/OrganizerJournalFiles.kt')
+        self.assertIn('context.noBackupFilesDir', source)
+        self.assertIn('AtomicFile(base)', source)
+        self.assertIn('encrypt(value)', source)
+        self.assertIn('output.write(encrypted.toByteArray', source)
+        self.assertNotIn('output.write(value', source)
+        self.assertLess(source.index('encrypt(value)'), source.index('atomic.startWrite()'))
 
     def test_providers_follow_the_application_package(self):
         import xml.etree.ElementTree as ET

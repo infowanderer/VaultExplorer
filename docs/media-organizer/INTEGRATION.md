@@ -1,5 +1,9 @@
 # Tablet photo organizer integration
 
+This records the original integration review and read-only spike. The current
+write-enabled checkpoint, corrected feature status and storage decisions are in
+[PHOTO-WORKFLOW.md](PHOTO-WORKFLOW.md).
+
 Reviewed baseline: `fbabd06a73fa8d2bb928c648b9c0f307c2bf62c0` of
 https://github.com/infowanderer/VaultExplorer (main).
 

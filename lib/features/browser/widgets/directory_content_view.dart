@@ -1,4 +1,5 @@
 import 'package:vaultexplorer/features/photo_sorter/photo_sorter_screen.dart';
+import 'package:vaultexplorer/features/photo_sorter/organizer.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
@@ -6209,7 +6210,7 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
                 _archiveContext != null ||
                 appBarSearchActive
             ? null
-            : () {
+            : () async {
                 final photos = filteredItems
                     .where(
                       (e) =>
@@ -6229,9 +6230,25 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
                     .map((e) => _joinPath(e.name))
                     .toList();
                 final io = ref.read(vaultFileIoApiProvider);
-                Navigator.of(context).push(
+                final organizer = OrganizerController(root: widget.container.uri, folder: _currentDirPath, photos: photos, bridge: OrganizerBridge(ref.read(vaultEngineChannelProvider)));
+                final lifecycle = ref.read(vaultLifecycleApiProvider);
+                await Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (_) => PhotoSorterScreen(
+                      organizer: organizer,
+                      pickDestination: () async {
+                        final picked = await lifecycle.pickExtractFolder();
+                        if (picked == null || !mounted) return null;
+                        final location = await organizer.bridge.chooseFolder(path: picked.path, treeUri: picked.treeUri);
+                        if (!mounted) return null;
+                        final label = await showDialog<String>(context: context, builder: (dialog) {
+                          var value = picked.displayName;
+                          return AlertDialog(title: const Text('Name this destination'),
+                            content: TextFormField(initialValue: value, autofocus: true, maxLength: 80, onChanged: (text) => value = text),
+                            actions: [TextButton(onPressed: () => Navigator.pop(dialog), child: const Text('Cancel')), FilledButton(onPressed: () { if (value.trim().isNotEmpty) Navigator.pop(dialog, value.trim()); }, child: const Text('Save'))]);
+                        });
+                        return label == null ? null : OrganizerFolder(location, '', label);
+                      },
                       photos: photos,
                       folderName: widget.container.displayName,
                       loadPreview: (path, size) => io.getImageThumbnail(
@@ -6242,6 +6259,10 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
                     ),
                   ),
                 );
+                if (mounted) {
+                  _opSvc.notifyVolumeContentChanged(widget.container.volId);
+                  await _loadDirectoryContents(_currentDirPath, refresh: true);
+                }
               },
         forwardStack: appBarForwardStack,
         onForwardTo: _navigateForward,

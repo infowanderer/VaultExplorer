@@ -8,12 +8,12 @@ import 'app_secure_storage.dart';
 class SecureMetadataStore {
   const SecureMetadataStore({
     required this.key,
-    required this.legacyFile,
+    this.legacyFile,
     this.secure = AppSecureStorage.instance,
     this.expectMap = false,
   });
   final String key;
-  final Future<File> Function() legacyFile;
+  final Future<File> Function()? legacyFile;
   final AppSecureStorage secure;
   final bool expectMap;
   static const maxBytes = 256 * 1024;
@@ -61,7 +61,9 @@ class SecureMetadataStore {
     if (await secure.containsKey(key: key)) {
       throw StateError('Protected metadata is currently unavailable');
     }
-    final file = await legacyFile();
+    final loadLegacy = legacyFile;
+    if (loadLegacy == null) return null;
+    final file = await loadLegacy();
     if (!await file.exists()) return null;
     if (await file.length() > maxBytes) {
       throw StateError('Legacy metadata exceeds secure storage limit');

@@ -1,5 +1,10 @@
 # Isolated tablet preview
 
+Checkpoint 61 adds real destinations, protected sessions, verified transfers and
+guarded recovery/undo. See [PHOTO-WORKFLOW.md](PHOTO-WORKFLOW.md) for current
+behavior, limits and hardware acceptance. The original build receipt below is
+historical; current package provenance is in [PHOTO-WORKFLOW-BUILD.md](PHOTO-WORKFLOW-BUILD.md).
+
 The opt-in preview uses package `com.aeidolon.vaultexplorer.preview` and launcher
 name **Media Organizer Preview**. Its document/share/stream providers use the same
 package prefix. Android app-private data and Keystore entries are separate from
@@ -52,13 +57,13 @@ It installs over the preceding preview with the same package and certificate.
 4. Background/reopen the app and lock/unlock a disposable test vault. Check that
    previews hide and no reviewed operation falls back to plaintext scratch.
 
-The sorter still stages labels in memory only; real destinations, committed
-transfers, durable organizer sessions and undo are unfinished. Archive, recording,
-edit-export and some other scratch-dependent host tools are blocked by the strict
-privacy policy. SMB/rclone are deferred. See [PLAINTEXT-WRITES.md](PLAINTEXT-WRITES.md)
+The organizer now saves its deck and decisions in encrypted app-owned storage;
+committed operations use the new verified journaled transfer adapter. Archive,
+recording, edit-export and some other scratch-dependent host tools remain blocked
+by the strict privacy policy. SMB/rclone are deferred. See [PLAINTEXT-WRITES.md](PLAINTEXT-WRITES.md)
 for encryption boundaries and existing artifact limits.
 
-## Verified build
+## Historical first-preview build
 
 A release-mode ARM64 preview APK has been built and test-signed. APK SHA-256:
 `2c68e6946b81ebdf774b2ba9251efb8237c72ae0bd498627a8aae74681dec73a`.

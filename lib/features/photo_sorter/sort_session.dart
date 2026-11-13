@@ -29,6 +29,16 @@ class SortSession {
     navigate(1);
   }
 
+  void restore({String? selected, Map<String, String> decisions = const {}}) {
+    _decisions
+      ..clear()
+      ..addEntries(
+        decisions.entries.where((entry) => photos.contains(entry.key)),
+      );
+    final index = selected == null ? -1 : photos.indexOf(selected);
+    _selected = index < 0 ? 0 : index;
+  }
+
   void clearCurrent() => _decisions.remove(current);
   void clear() => _decisions.clear();
 }

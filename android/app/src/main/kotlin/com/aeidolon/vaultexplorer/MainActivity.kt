@@ -418,6 +418,9 @@ open class MainActivity : FlutterFragmentActivity() {
     private val folderDocumentProviderHandlers = FolderDocumentProviderHandlers(this)
     private val disguiseModeHandlers = DisguiseModeHandlers(this)
     private val secureStorageHandlers = SecureStorageHandlers(this)
+    private val organizerHandlers by lazy {
+        com.aeidolon.vaultexplorer.organizer.OrganizerHandlers(this, secureStorageHandlers)
+    }
     private val automationSettingsHandlers = AutomationSettingsHandlers(this)
     private val repairHandlers = RepairHandlers(this, ioExecutor)
     private val headerBackupHandlers = HeaderBackupHandlers(this, ioExecutor, nativeOps)
@@ -538,6 +541,7 @@ open class MainActivity : FlutterFragmentActivity() {
     }
 
     override fun onPause() {
+        com.aeidolon.vaultexplorer.organizer.OrganizerHandlers.cancelAll()
         super.onPause()
         // Not while going into the PiP window: the curtain would blank the
         // video the person asked to keep on screen. FLAG_SECURE still applies.
@@ -1192,6 +1196,8 @@ open class MainActivity : FlutterFragmentActivity() {
                 ChannelMethods.SCRYPT -> derivedKeyHandlers.handleScrypt(call, result)
                  ChannelMethods.ARGON2ID -> derivedKeyHandlers.handleArgon2id(call, result)
                 ChannelMethods.XCHACHA20_POLY1305_OPEN -> derivedKeyHandlers.handleXchacha20Poly1305Open(call, result)
+                "organizerPrepare", "organizerExecute", "organizerList", "organizerUndo",
+                "organizerCancel", "organizerProgress", "organizerInspect", "organizerFingerprint", "organizerReconcile", "organizerChooseFolder" -> organizerHandlers.handle(call, result)
                 ChannelMethods.READ_SECURE -> secureStorageHandlers.handleRead(call, result)
                 ChannelMethods.WRITE_SECURE -> secureStorageHandlers.handleWrite(call, result)
                 ChannelMethods.DELETE_SECURE -> secureStorageHandlers.handleDelete(call, result)

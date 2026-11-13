@@ -63,6 +63,7 @@ object PanicManager {
             VeLog.w(TAG) { "execute($tier, source=$source): ignored -- a panic wipe is already in progress" }
             return PanicResult(tier, success = false, error = "already_in_progress")
         }
+        com.aeidolon.vaultexplorer.organizer.OrganizerHandlers.invalidateSessions()
         VeLog.i(TAG) { "execute($tier, source=$source): starting" }
         val appContext = context.applicationContext
         return try {
