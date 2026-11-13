@@ -1,5 +1,40 @@
 # Photo workflow checkpoint 61 — build receipt
 
+## Sorter UI follow-up
+
+The UI follow-up fixes the blank sorter by using the same `material_ui` widget,
+theme and localization family as the real host app. A regression test first
+reproduced missing MaterialLocalizations errors in AppBar, TextField and dropdown
+controls under the real host-style route. The corrected route renders its search
+field, grid, destinations and back navigation without those exceptions. The
+sorter dialogs use the matching widget family too.
+
+Toolbar and navigation labels start enabled. The Labels toggle persists globally
+in the existing Keystore-backed protected metadata store. Hover and long press
+show tooltips in both display modes; long press does not activate the command.
+Toolbar wrapping and 48-pixel action targets support narrow windows and touch.
+
+- Full Flutter suite: **3,857 passed**. Focused sorter/protected-metadata suite:
+  **52 passed**. Separate preview identity run: **4 passed**.
+- Regression coverage includes the host route, wide/narrow layouts, review and
+  commit dialogs, mouse hover, long press, label persistence across folders,
+  unreadable preferences and failed preference writes.
+- Analyzer with repository CI flags exits 0 with zero errors; existing warnings
+  and info diagnostics remain. Twelve privacy guards, five APK-checker tests,
+  code boundaries and whitespace checks pass.
+- ARM64 Dart AOT and Flutter assets were rebuilt with the pinned SDK. The guarded
+  updater verifies the exact full-native checkpoint-61 base and matching engine
+  load segments, retaining **916 Android/native entries byte-for-byte**. This UI
+  update is not a fresh native/Gradle rebuild; native tests were not rerun.
+- Signed APK boundary/privacy/signature checks and 16 KiB ZIP alignment pass.
+  Package, Android version code 61 and signing certificate are unchanged, allowing
+  installation over the current preview. No device/DeX/S Pen hardware pass is
+  claimed. The synthetic host render is not a hardware screenshot.
+- UI APK: **29,472,490 bytes**; SHA-256
+  `303c7ebdac50e63658776831fab7d66bf845783734a562dfa5a762a2d50c0f53`.
+
+The receipt below records the preceding full native build.
+
 Built on 2026-11-13 from the draft `media-organizer/tablet-spike` branch. This is
 a **full Android/Flutter/Kotlin/JNI rebuild**, not a Dart-only APK replacement.
 

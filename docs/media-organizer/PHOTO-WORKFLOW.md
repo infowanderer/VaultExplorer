@@ -25,6 +25,16 @@ requires explicit Resume. This is deliberately foreground work, not a persistent
 Android background service. Source selection and the destination deck are restored
 when reopening that folder; no library import is required.
 
+### Button help and labels
+
+The **Labels** button in the top bar switches toolbar and photo-navigation
+buttons between icons with labels and icons alone. Labels start enabled; the
+choice is saved in the protected app preferences and follows you between folders.
+Destination names remain visible in either mode. Hover over a toolbar/navigation
+button with the mouse, or long press it with touch or pen, to show its tooltip.
+Long pressing a toolbar button shows help without activating its action.
+The action toolbar wraps onto additional rows in narrow or split-screen windows.
+
 ## File safety
 
 | Storage access | Copy | Interrupted transfer | Move / Undo |

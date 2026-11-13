@@ -174,6 +174,26 @@ class OrganizerRepository {
     : _store =
           store ?? ((key) => SecureMetadataStore(key: key, expectMap: true));
   final SecureMetadataStore Function(String key) _store;
+  static const _uiKey = 'private_metadata_organizer_ui_v1';
+  static bool _buttonLabels(String? value) {
+    if (value == null) return true;
+    final json = jsonDecode(value) as Map;
+    if (json['version'] != 1 || json['showButtonLabels'] is! bool) {
+      throw const FormatException('Invalid organizer display preference');
+    }
+    return json['showButtonLabels'] as bool;
+  }
+
+  Future<bool> loadButtonLabels() async =>
+      _buttonLabels(await _store(_uiKey).read());
+
+  Future<void> saveButtonLabels(bool value) => _store(_uiKey).update((
+    previous,
+  ) {
+    _buttonLabels(previous); // Refuse to replace invalid protected preferences.
+    return jsonEncode({'version': 1, 'showButtonLabels': value});
+  });
+
   Future<String> sessionKey(String root, String folder) async {
     String? id;
     final random = Random.secure();
@@ -332,6 +352,7 @@ class OrganizerController extends ChangeNotifier {
 
   String? _key, error, activeJob;
   bool ready = false,
+      showButtonLabels = true,
       saving = false,
       running = false,
       disposed = false,
@@ -353,8 +374,10 @@ class OrganizerController extends ChangeNotifier {
     try {
       _key = await repository.sessionKey(root, folder);
       final restored = await repository.load(_key!);
+      final labels = await repository.loadButtonLabels();
       if (disposed || generation != _openGeneration) return;
       state = restored;
+      showButtonLabels = labels;
       await refreshHistory();
       if (disposed || generation != _openGeneration) return;
       ready = true;
@@ -403,6 +426,23 @@ class OrganizerController extends ChangeNotifier {
       }
       next.destinations.add(destination);
     });
+  }
+
+  Future<void> setButtonLabels(bool value) async {
+    if (!ready || saving || running) return;
+    saving = true;
+    error = null;
+    changed();
+    try {
+      await repository.saveButtonLabels(value);
+      showButtonLabels = value;
+    } catch (_) {
+      error =
+          'Could not save button labels. Your previous setting is retained.';
+    } finally {
+      saving = false;
+      changed();
+    }
   }
 
   Future<bool> stage(

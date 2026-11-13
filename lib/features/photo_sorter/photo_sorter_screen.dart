@@ -1,12 +1,13 @@
 import 'dart:async';
 import 'package:vaultexplorer/core/widgets/thumbnail/priority_task_queue.dart';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import 'sort_session.dart';
 import 'organizer.dart';
 import 'organizer_widgets.dart';
+import 'organizer_action_button.dart';
 import '../browser/viewer/media_input.dart';
 
 typedef PhotoPreviewLoader = Future<Uint8List?> Function(String path, int size);
@@ -42,6 +43,9 @@ class _PhotoSorterScreenState extends State<PhotoSorterScreen>
   ReviewState? stateFilter;
   int minimumRating = 0;
   bool typing = false, moveMode = false;
+  bool previewButtonLabels = true;
+  bool get showButtonLabels =>
+      organizer?.showButtonLabels ?? previewButtonLabels;
   OrganizerController? get organizer => widget.organizer;
   List<String> get destinations =>
       organizer?.state.destinations.map((d) => d.name).toList() ??
@@ -295,6 +299,79 @@ class _PhotoSorterScreenState extends State<PhotoSorterScreen>
     );
   }
 
+  Widget actionButton({
+    required String label,
+    required String tooltip,
+    required Widget icon,
+    required VoidCallback? onPressed,
+  }) => OrganizerActionButton(
+    label: label,
+    tooltip: tooltip,
+    icon: icon,
+    showLabel: showButtonLabels,
+    onPressed: onPressed,
+  );
+
+  Widget get toolbar => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 8),
+    child: Wrap(
+      spacing: 4,
+      runSpacing: 4,
+      children: [
+        if (organizer != null)
+          actionButton(
+            label: 'Add destination',
+            tooltip: 'Add destination folder',
+            icon: const Icon(Icons.create_new_folder_outlined),
+            onPressed:
+                organizer!.running ||
+                    organizer!.saving ||
+                    destinations.length >= 9
+                ? null
+                : addDestination,
+          ),
+        if (organizer != null)
+          actionButton(
+            label: 'Review',
+            tooltip: 'Review / rate / tag (R)',
+            icon: const Icon(Icons.sell_outlined),
+            onPressed: editReview,
+          ),
+        actionButton(
+          label: 'Queue',
+          tooltip: organizer == null
+              ? 'Preview queue'
+              : 'Operation queue & history',
+          icon: Badge(
+            label: Text('${session.decisions.length}'),
+            child: const Icon(Icons.playlist_add_check),
+          ),
+          onPressed: showQueue,
+        ),
+        if (organizer != null)
+          actionButton(
+            label: 'Find renamed',
+            tooltip: 'Verify reviews / find renamed files',
+            icon: const Icon(Icons.find_replace),
+            onPressed:
+                organizer!.running ||
+                    organizer!.saving ||
+                    organizer!.verifyingReviews
+                ? null
+                : organizer!.verifySavedReviews,
+          ),
+        if (organizer != null && organizer!.reviewWarnings.isNotEmpty)
+          actionButton(
+            label: 'Warnings',
+            tooltip: 'Review identity warnings',
+            icon: const Icon(Icons.warning_amber_outlined),
+            onPressed: () =>
+                showReviewWarnings(context, organizer!, session.current),
+          ),
+      ],
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     if (organizer != null && !organizer!.ready) {
@@ -399,60 +476,40 @@ class _PhotoSorterScreenState extends State<PhotoSorterScreen>
           autofocus: true,
           child: Scaffold(
             appBar: AppBar(
-              title: Text('Sort photos · ${widget.folderName}'),
+              title: Text(
+                'Sort photos · ${widget.folderName}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
               actions: [
-                if (organizer != null && organizer!.reviewWarnings.isNotEmpty)
-                  IconButton(
-                    tooltip: 'Review identity warnings',
-                    onPressed: () => showReviewWarnings(
-                      context,
-                      organizer!,
-                      session.current,
-                    ),
-                    icon: const Icon(Icons.warning_amber_outlined),
+                actionButton(
+                  label: 'Labels',
+                  tooltip: showButtonLabels
+                      ? 'Hide button labels'
+                      : 'Show button labels',
+                  icon: Icon(
+                    showButtonLabels
+                        ? Icons.label_outline
+                        : Icons.label_off_outlined,
                   ),
-                if (organizer != null)
-                  IconButton(
-                    tooltip: 'Verify reviews / find renamed files',
-                    onPressed:
-                        organizer!.running ||
-                            organizer!.saving ||
-                            organizer!.verifyingReviews
-                        ? null
-                        : organizer!.verifySavedReviews,
-                    icon: const Icon(Icons.find_replace),
-                  ),
-                if (organizer != null)
-                  IconButton(
-                    tooltip: 'Add destination folder',
-                    onPressed:
-                        organizer!.running ||
-                            organizer!.saving ||
-                            destinations.length >= 9
-                        ? null
-                        : addDestination,
-                    icon: const Icon(Icons.create_new_folder_outlined),
-                  ),
-                if (organizer != null)
-                  IconButton(
-                    tooltip: 'Review / rate / tag (R)',
-                    onPressed: editReview,
-                    icon: const Icon(Icons.sell_outlined),
-                  ),
-                IconButton(
-                  tooltip: organizer == null
-                      ? 'Preview queue'
-                      : 'Operation queue & history',
-                  onPressed: showQueue,
-                  icon: Badge(
-                    label: Text('${session.decisions.length}'),
-                    child: const Icon(Icons.playlist_add_check),
-                  ),
+                  onPressed:
+                      organizer?.saving == true || organizer?.running == true
+                      ? null
+                      : () async {
+                          if (organizer != null) {
+                            await organizer!.setButtonLabels(!showButtonLabels);
+                          } else {
+                            setState(
+                              () => previewButtonLabels = !previewButtonLabels,
+                            );
+                          }
+                        },
                 ),
               ],
             ),
             body: Column(
               children: [
+                toolbar,
                 if (organizer == null)
                   const Padding(
                     padding: EdgeInsets.all(8),
@@ -806,8 +863,9 @@ class _PhotoSorterScreenState extends State<PhotoSorterScreen>
                       crossAxisAlignment: WrapCrossAlignment.center,
                       alignment: WrapAlignment.center,
                       children: [
-                        IconButton(
-                          tooltip: 'Previous photo',
+                        actionButton(
+                          label: 'Previous',
+                          tooltip: 'Previous photo (Left arrow)',
                           onPressed: () => navigate(-1),
                           icon: const Icon(Icons.chevron_left),
                         ),
@@ -816,19 +874,27 @@ class _PhotoSorterScreenState extends State<PhotoSorterScreen>
                               ? '0 / 0'
                               : '${session.selected + 1} / ${session.photos.length}',
                         ),
-                        IconButton(
-                          tooltip: 'Next photo',
+                        actionButton(
+                          label: 'Next',
+                          tooltip: 'Next photo (Right arrow)',
                           onPressed: () => navigate(1),
                           icon: const Icon(Icons.chevron_right),
                         ),
-                        const SizedBox(width: 8),
-                        TextButton(
+                        actionButton(
+                          label: viewing ? 'Grid' : 'View',
+                          tooltip: viewing
+                              ? 'Show thumbnail grid (Space)'
+                              : 'Enlarge current photo (Space)',
+                          icon: Icon(
+                            viewing ? Icons.grid_view : Icons.photo_outlined,
+                          ),
                           onPressed: () => setState(() => viewing = !viewing),
-                          child: Text(viewing ? 'Grid' : 'View'),
                         ),
-                        TextButton(
+                        actionButton(
+                          label: 'Unstage',
+                          tooltip: 'Unstage current photo (Backspace)',
+                          icon: const Icon(Icons.backspace_outlined),
                           onPressed: clearDecision,
-                          child: const Text('Clear decision'),
                         ),
                       ],
                     ),

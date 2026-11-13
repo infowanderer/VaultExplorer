@@ -12,8 +12,8 @@ import struct
 import subprocess
 import zipfile
 
-BASE_COMMIT = '26472012e98680211b891546880ee275ccdf2436'
-BASE_SHA256 = 'd9c9b2d2e188bfec657ea2e1d5328b9843dd35a7ba3f525279ae48f97400fd9d'
+BASE_COMMIT = '2c664cb189296dc62d56c71b7cd760839363371a'
+BASE_SHA256 = '87cb150291016f22045554dba6cb8b8b76a2acb037d75d52957d18bcefe5c1ad'
 
 
 def runtime_segments(data):

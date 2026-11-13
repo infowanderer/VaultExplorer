@@ -5,6 +5,25 @@ import 'package:vaultexplorer/features/photo_sorter/organizer.dart';
 import 'organizer_fakes.dart';
 
 void main() {
+  test(
+    'old sessions default to labels without creating a preference record',
+    () async {
+      final storage = ProtectedMemory();
+      expect(await storage.repository().loadButtonLabels(), isTrue);
+      expect(storage.records, isEmpty);
+    },
+  );
+  test('invalid protected display preferences are never replaced', () async {
+    final storage = ProtectedMemory();
+    storage.records['private_metadata_organizer_ui_v1'] =
+        '{"version":99,"showButtonLabels":false}';
+    final before = Map.of(storage.records);
+    await expectLater(
+      storage.repository().saveButtonLabels(true),
+      throwsFormatException,
+    );
+    expect(storage.records, before);
+  });
   late ProtectedMemory protected;
   late FixtureBridge bridge;
   late OrganizerController controller;
@@ -20,6 +39,23 @@ void main() {
       bridge: bridge,
     );
   });
+  test(
+    'failed label persistence retains the last setting and staged decisions',
+    () async {
+      await controller.open();
+      final before = controller.state.toJson();
+      protected.persist = false;
+      await controller.setButtonLabels(false);
+      expect(controller.showButtonLabels, isTrue);
+      expect(controller.error, isNotNull);
+      expect(controller.state.toJson(), before);
+      expect(bridge.executions, 0);
+      protected.persist = true;
+      await controller.setButtonLabels(false);
+      expect(controller.showButtonLabels, isFalse);
+      expect(await protected.repository().loadButtonLabels(), isFalse);
+    },
+  );
   tearDown(() => controller.dispose());
   test(
     'destinations, decisions, selected photo and reviews survive a new controller',

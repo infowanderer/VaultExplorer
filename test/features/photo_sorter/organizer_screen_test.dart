@@ -1,5 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vaultexplorer/features/photo_sorter/organizer.dart';
 import 'package:vaultexplorer/features/photo_sorter/photo_sorter_screen.dart';
@@ -143,6 +144,66 @@ void main() {
     await tester.tap(find.text('Choose your first destination folder'));
     await tester.pumpAndSettle();
     expect(find.text('1 · My picks'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'button labels default on and icons-only choice survives reopening another folder',
+    (tester) async {
+      await open(tester);
+      expect(find.text('Add destination'), findsOneWidget);
+      expect(find.text('Previous'), findsOneWidget);
+      await tester.tap(find.byTooltip('Hide button labels'));
+      await tester.pumpAndSettle();
+      expect(find.text('Add destination'), findsNothing);
+      expect(find.byTooltip('Add destination folder'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+      controller = OrganizerController(
+        root: '/storage/other-fixtures',
+        folder: '',
+        photos: ['a.jpg'],
+        repository: protected.repository(),
+        bridge: bridge,
+      );
+      await open(tester);
+      expect(find.text('Add destination'), findsNothing);
+      expect(find.byTooltip('Show button labels'), findsOneWidget);
+      await tester.tap(find.byTooltip('Show button labels'));
+      await tester.pumpAndSettle();
+      expect(find.text('Add destination'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('long press explains a toolbar action without activating it', (
+    tester,
+  ) async {
+    await open(tester);
+    await tester.longPress(find.byTooltip('Review / rate / tag (R)'));
+    await tester.pumpAndSettle();
+    expect(find.text('Review / rate / tag (R)'), findsOneWidget);
+    expect(find.text('Review photograph'), findsNothing);
+    expect(bridge.executions, 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('mouse hover shows action help with button labels hidden', (
+    tester,
+  ) async {
+    await open(tester);
+    await tester.tap(find.byTooltip('Hide button labels'));
+    await tester.pumpAndSettle();
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer();
+    await mouse.moveTo(
+      tester.getCenter(find.byTooltip('Add destination folder')),
+    );
+    await tester.pump(const Duration(milliseconds: 450));
+    await tester.pumpAndSettle();
+    expect(find.text('Add destination folder'), findsOneWidget);
+    expect(controller.state.destinations, isEmpty);
+    await mouse.removePointer();
+    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
 }
