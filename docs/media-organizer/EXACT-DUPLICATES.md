@@ -23,5 +23,6 @@ Five native synthetic-filesystem cases cover exact matches, same-size different
 content, singleton read avoidance, empty files, cancellation, source changes and
 batch bounds. Six widget cases cover narrow reports, no matches, invalid report
 members, cancelled late results, lifecycle cancellation and oversized input. All
-pass. The integrated Flutter suite passes 3,902 tests. Android packaging/device
-verification is tracked separately; host tests do not validate document providers.
+pass. The integrated Flutter suite passes 3,911 tests. The full native release build, signed APK checks and 77 targeted
+Android unit tests pass; see [the receipt](BUILD-62-PROGRESS.md). Real document
+providers still require device validation.

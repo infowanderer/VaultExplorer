@@ -12,12 +12,14 @@ class MediaOrganizationShortcuts extends StatelessWidget {
     required this.onSort,
     required this.onTags,
     this.onDestination,
+    this.onFrames,
     this.enabled = true,
   });
   final Widget child;
   final Future<void> Function(int) onRating;
   final VoidCallback onSort, onTags;
   final ValueChanged<int>? onDestination;
+  final VoidCallback? onFrames;
   final bool enabled;
   static const digits = [
     LogicalKeyboardKey.digit1,
@@ -66,6 +68,10 @@ class MediaOrganizationShortcuts extends StatelessWidget {
       }
       if (event.logicalKey == LogicalKeyboardKey.keyT) {
         onTags();
+        return KeyEventResult.handled;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.keyV && onFrames != null) {
+        onFrames!();
         return KeyEventResult.handled;
       }
       return KeyEventResult.ignored;

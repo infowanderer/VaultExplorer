@@ -57,6 +57,7 @@ class MediaOrganizationHost extends StatefulWidget {
     this.pickDestination,
     this.enabled = true,
     this.overlay = false,
+    this.onFrames,
   });
   final String root, folder;
   final List<String> files, selected;
@@ -65,6 +66,7 @@ class MediaOrganizationHost extends StatefulWidget {
   final OrganizationBuilder builder;
   final Future<OrganizerFolder?> Function(OrganizerBridge)? pickDestination;
   final bool enabled, overlay;
+  final VoidCallback? onFrames;
   @override
   State<MediaOrganizationHost> createState() => _MediaOrganizationHostState();
 }
@@ -226,6 +228,7 @@ class _MediaOrganizationHostState extends State<MediaOrganizationHost>
       onSort: sort,
       onTags: tags,
       onQueue: queue,
+      onFrames: widget.onFrames,
       overlay: widget.overlay,
       enabled: active,
     );
@@ -236,6 +239,7 @@ class _MediaOrganizationHostState extends State<MediaOrganizationHost>
       },
       onSort: sort,
       onTags: tags,
+      onFrames: widget.onFrames,
       onDestination: (index) {
         if (index < model.state.destinations.length) {
           unawaited(

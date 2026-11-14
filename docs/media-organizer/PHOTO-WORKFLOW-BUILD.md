@@ -1,4 +1,13 @@
-# Photo workflow checkpoint 61 — build receipt
+# Media organizer build receipts
+
+## Current: build 62
+
+See [the signed release receipt](BUILD-62-PROGRESS.md) for the full native build,
+3,911 Flutter tests, 77 Android unit tests, artifact identity and remaining device
+validation. Build 62 adds uniform interactive video contact sheets, exact photo
+duplicate reports, fuzzy destinations and recovery/privacy fixes.
+
+## Historical: build 61
 
 ## Compact gallery and viewer revision
 

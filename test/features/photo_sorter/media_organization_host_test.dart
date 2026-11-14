@@ -7,6 +7,57 @@ import 'package:vaultexplorer/features/photo_sorter/organizer.dart';
 import 'organizer_fakes.dart';
 
 void main() {
+  testWidgets(
+    'video frame shortcut respects text focus and disabled viewer controls',
+    (tester) async {
+      final storage = ProtectedMemory();
+      var frames = 0, enabled = true;
+      late StateSetter update;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StatefulBuilder(
+            builder: (_, setState) {
+              update = setState;
+              return Scaffold(
+                body: MediaOrganizationHost(
+                  root: '/fixture',
+                  folder: '',
+                  files: const ['video.mp4'],
+                  selected: const ['video.mp4'],
+                  bridge: FixtureBridge(),
+                  repository: storage.repository(),
+                  overlay: true,
+                  enabled: enabled,
+                  onFrames: () => frames++,
+                  builder: (_, _, controls) => MediaInputScope(
+                    onCommand: (_) => true,
+                    child: Column(children: [controls, const TextField()]),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyV);
+      await tester.pumpAndSettle();
+      expect(frames, 1);
+      await tester.tap(find.byType(TextField));
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyV);
+      expect(frames, 1);
+      await tester.tap(find.byTooltip('Video contact sheet (V)'));
+      await tester.pumpAndSettle();
+      expect(frames, 2);
+      update(() => enabled = false);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyV);
+      await tester.tap(find.byTooltip('Video contact sheet (V)'));
+      await tester.pumpAndSettle();
+      expect(frames, 2);
+      expect(tester.takeException(), isNull);
+    },
+  );
   for (final file in ['photo.jpg', 'video.mp4']) {
     for (final viewer in [false, true]) {
       testWidgets(
@@ -38,7 +89,7 @@ void main() {
                     );
                     return viewer
                         ? MediaInputScope(onCommand: (_) => true, child: canvas)
-                  : canvas;
+                        : canvas;
                   },
                 ),
               ),

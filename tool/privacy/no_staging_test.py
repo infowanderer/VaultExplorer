@@ -20,6 +20,15 @@ class NoStagingTests(unittest.TestCase):
     def test_export_handlers_have_no_cache_staging(self):
         self.assert_no_staging('handlers/ImportExportHandlers.kt')
 
+    def test_thumbnail_diagnostics_do_not_include_media_details_or_exception_text(self):
+        import re
+        source = (NATIVE / 'handlers/ThumbnailHandlers.kt').read_text()
+        messages = re.findall(r'VeLog\.[diwe]\(TAG[^)]*\)\s*\{(.*?)\}', source, re.S)
+        self.assertGreater(len(messages), 10)
+        for message in messages:
+            for sensitive in ('fileName', '.message', 'rawWidth', 'rawHeight', '$width', '$height', 'retryPositionMs'):
+                self.assertNotIn(sensitive, message, 'Thumbnail diagnostics leaked media details')
+
     def test_transfer_module_has_no_filesystem_dependency(self):
         source = self.assert_no_staging('privacy/VaultReadInputStream.kt')
         for forbidden in ('java.io.File', 'java.nio.file', 'android.content.Context'):

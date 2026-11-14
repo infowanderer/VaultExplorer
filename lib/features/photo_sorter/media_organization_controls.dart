@@ -12,6 +12,7 @@ class MediaOrganizationControls extends StatelessWidget {
     required this.onSort,
     required this.onTags,
     this.onQueue,
+    this.onFrames,
     this.overlay = false,
     this.enabled = true,
   });
@@ -19,6 +20,7 @@ class MediaOrganizationControls extends StatelessWidget {
   final List<String> paths;
   final VoidCallback onSort, onTags;
   final VoidCallback? onQueue;
+  final VoidCallback? onFrames;
   final bool overlay, enabled;
   @override
   Widget build(BuildContext context) {
@@ -126,6 +128,15 @@ class MediaOrganizationControls extends StatelessWidget {
                       ),
                       showLabel: model.showButtonLabels,
                       onPressed: enabled ? onQueue : null,
+                    ),
+                  if (onFrames != null)
+                    OrganizerActionButton(
+                      label: 'Frames',
+                      tooltip: 'Video contact sheet (V)',
+                      foregroundColor: overlay ? Colors.white : null,
+                      icon: const Icon(Icons.view_module_outlined),
+                      showLabel: model.showButtonLabels,
+                      onPressed: active ? onFrames : null,
                     ),
                   if (model.saving)
                     const SizedBox(
@@ -369,7 +380,8 @@ Future<void> showMediaTagsSheet(
                                   s.codeUnits.any((c) => c < 32),
                             )) {
                           update(
-                            () => error = 'Use up to 20 tags, each at most 40 characters.',
+                            () => error =
+                                'Use up to 20 tags, each at most 40 characters.',
                           );
                           return;
                         }

@@ -1,4 +1,4 @@
-# Protected media workflow — Android checkpoint 61, compact UI revision
+# Protected media workflow — Android checkpoint 62
 
 This is the first write-enabled organizer build, following the read-only tablet
 preview. Start with disposable photographs before using a valuable collection.
@@ -22,6 +22,15 @@ storage-provider behavior and performance still need the hardware checks below.
 5. Photo sorter's **More** menu holds filters, review states/details (**R**), batch
    rename, collections/saved searches, rename reconciliation and Preferences.
    Delete candidate is metadata. Escape returns to the gallery with decisions saved.
+
+The Sort sheet includes fuzzy saved-name search; Enter stages the first match.
+Alt shortcut numbers stay attached to the original destinations while filtering.
+Photo sorter's More menu also provides read-only exact-duplicate reports, bounded
+to 500 files. See [EXACT-DUPLICATES.md](EXACT-DUPLICATES.md).
+
+In the initialized local video viewer, **Frames / V** pauses playback and opens a
+6/12/24-preview contact sheet. Tap a preview/time to seek. Frames stay in memory;
+closing/backgrounding stops generation. See [CONTACT-SHEETS.md](CONTACT-SHEETS.md).
 
 The inherited browser/viewer **Delete** action permanently deletes. **More →
 Preferences → Confirm permanent deletion** makes its confirmation optional (on by
@@ -150,25 +159,27 @@ changes. Strong matching is kept separate from uncertain suggestions.
 
 | ID | This checkpoint | Remaining |
 | --- | --- | --- |
-| F01 | Named destination deck, shortcuts, persistent folders | Fuzzy routing, presets, inline folder creation |
+| F01 | Named destinations, fuzzy saved-name search, stable shortcuts, persistent folders | Arbitrary folder search, presets, inline folder creation |
 | F02 / A02 | Visible queue + Run queue, serial progress, cancellation, journal, guarded recovery/undo | Durable background scheduling and provider-specific capabilities |
 | F03 / A08 | Review states, stars, filters, folder session restoration | Larger catalog/session management |
 | F04 | Protected tags, suggestions, batch editing, text filtering | SQLite tag catalog, xattr/filename export |
 | F08 | Batch templates/counters/UTC modification date, previews, collision/source checks, combined routing | EXIF capture-date templates and larger batches |
 | F09 | Protected static photo collections, saved review searches and read-only result previews | Scalable catalog, full media playback/actions within collections |
 | A01 / A07 | Scoped strong identity tracking and storage-specific transfer policy | Cross-folder relocation reconciliation, unavailable device tracking |
-| F05 / F06 / F11 / F12 | Existing video viewer only | Contact sheets, safe clip extraction, scene sampling and storyboard wall |
-| F07 / F10 / F13 / F14 | Not implemented by this checkpoint | Duplicate duel, rules/CLI, tag views, sync/backup |
+| F05 | Interactive uniform 6/12/24-frame memory-only video contact sheets and seek | Image export, in/out selection, real decoder/device acceptance |
+| F07 | Read-only exact-photo duplicate reports with size bucketing and SHA-256 | Perceptual groups, side-by-side Dupe Duel and video-gallery entry points |
+| F06 / F11 / F12 | Existing video viewer only | Safe clip extraction, scene sampling and storyboard wall |
+| F10 / F13 / F14 | Not implemented by this checkpoint | Rules/CLI, tag views, sync/backup |
 | A03 / A04 / A05 / A06 | Existing host capabilities only | Organizer edit decisions, command palette/remapping/scripts, metadata inspector and persistent jobs |
 
 ## Build and validation
 
 Use Java 21, the pinned `.flutter` submodule, and the Android SDK/NDK versions in
 the repository. Follow [TABLET-PREVIEW.md](TABLET-PREVIEW.md) for the full ARM64
-release build and signing checks. The original `1.50.0+61` needed a full native
+release build and signing checks. Both `1.50.0+61` and `1.50.0+62` need a full native
 build. The guarded Dart updater now pins that exact full build, verifies native
 sources/engine payloads and preserves its Android/native entries byte-for-byte.
-It must refuse any future native-source or dependency change. See the build
+It must refuse build 62's native-source and version changes. See the build
 receipt for actual validation and artifact provenance of this UI revision.
 An upgrade must use the same preview package and signing certificate; no uninstall
 is needed. An unsigned build is not an installable release.

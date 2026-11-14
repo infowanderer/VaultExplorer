@@ -1,4 +1,5 @@
 import 'package:vaultexplorer/features/photo_sorter/deletion_policy.dart';
+import 'package:vaultexplorer/features/photo_sorter/contact_sheet_dialog.dart';
 import 'package:vaultexplorer/features/photo_sorter/media_organization_host.dart';
 import 'package:vaultexplorer/features/photo_sorter/organizer.dart';
 import 'package:vaultexplorer/features/photo_sorter/organizer_destination_picker.dart';
@@ -2755,6 +2756,44 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen>
     }
   }
 
+  Future<void> _showContactSheet() async {
+    final file = _playlistController.currentFile;
+    final container = widget.container;
+    final controller = _playbackManager.activeController;
+    if (controller == null || !controller.value.isInitialized ||
+        _playbackManager.currentFileName != file ||
+        controller.value.duration <= Duration.zero) return;
+    final durationUs = controller.value.duration.inMicroseconds;
+    final io = ref.read(vaultFileIoApiProvider);
+    bool current() => mounted && !_closing &&
+        widget.container.uri == container.uri && widget.container.volId == container.volId &&
+        _playlistController.currentFile == file &&
+        identical(_playbackManager.activeController, controller);
+    _menuOpened();
+    _cancelSlideshowTimer();
+    try {
+      await controller.pause();
+      if (!current()) return;
+      await showDialog<void>(context: context, builder: (_) => ContactSheetDialog(
+        durationUs: durationUs,
+        loadFrame: (timeUs) {
+          if (!current()) throw StateError('Video changed');
+          return io.getVideoThumbnail(container, file, timeUs: timeUs,
+            targetSize: 320, quality: 65);
+        },
+        seek: (timeUs) async {
+          if (!current()) throw StateError('Video changed');
+          await controller.seekTo(Duration(microseconds: timeUs));
+        },
+      ));
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open contact sheet for this video.')));
+    } finally {
+      if (mounted) _menuClosed();
+    }
+  }
+
   void _menuOpened() {
     _activeMenuCount++;
     _hideTimer?.cancel();
@@ -4778,6 +4817,11 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen>
         files: _playlistController.playlist.map((file) => organizationPath(widget.container.uri, file)).whereType<String>().toList(),
         selected: [current], bridge: OrganizerBridge(ref.read(vaultEngineChannelProvider)),
         enabled: !_controlsLocked && !_isEditingLayout, overlay: true,
+        onFrames: MediaViewerConstants.isVideo(_playlistController.currentFile) &&
+            _playbackManager.currentFileName == _playlistController.currentFile &&
+            _playbackManager.activeController?.value.isInitialized == true &&
+            (_playbackManager.activeController?.value.duration ?? Duration.zero) > Duration.zero
+            ? () => unawaited(_showContactSheet()) : null,
         pickDestination: (bridge) => pickOrganizerDestination(context, ref.read(vaultLifecycleApiProvider), bridge),
         builder: (_, model, controls) => buildViewer(!_controlsLocked && !_isEditingLayout ? controls : null),
       );
