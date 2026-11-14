@@ -1197,7 +1197,7 @@ open class MainActivity : FlutterFragmentActivity() {
                  ChannelMethods.ARGON2ID -> derivedKeyHandlers.handleArgon2id(call, result)
                 ChannelMethods.XCHACHA20_POLY1305_OPEN -> derivedKeyHandlers.handleXchacha20Poly1305Open(call, result)
                 "organizerPrepare", "organizerExecute", "organizerList", "organizerUndo",
-                "organizerCancel", "organizerProgress", "organizerInspect", "organizerFingerprint", "organizerReconcile", "organizerChooseFolder" -> organizerHandlers.handle(call, result)
+                "organizerCancel", "organizerProgress", "organizerInspect", "organizerFingerprint", "organizerReconcile", "organizerChooseFolder", "organizerExactDuplicates" -> organizerHandlers.handle(call, result)
                 ChannelMethods.READ_SECURE -> secureStorageHandlers.handleRead(call, result)
                 ChannelMethods.WRITE_SECURE -> secureStorageHandlers.handleWrite(call, result)
                 ChannelMethods.DELETE_SECURE -> secureStorageHandlers.handleDelete(call, result)

@@ -29,6 +29,7 @@ Thumbs.db
 .pub-cache/
 .pub/
 /build/
+/android/build/
 /coverage/
 
 # Symbolication related

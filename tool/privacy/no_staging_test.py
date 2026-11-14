@@ -67,7 +67,7 @@ class NoStagingTests(unittest.TestCase):
 
     def test_organizer_streams_never_stage_or_permanently_delete_media(self):
         for path in ('organizer/OrganizerTransfer.kt', 'organizer/RawOrganizerFiles.kt',
-                     'organizer/AndroidOrganizerFiles.kt'):
+                     'organizer/AndroidOrganizerFiles.kt', 'organizer/OrganizerDuplicates.kt'):
             source = self.assert_no_staging(path)
             for forbidden in ('Files.delete(', 'deleteDocument(', '.delete(', 'deleteRecursively('):
                 self.assertNotIn(forbidden, source, f'{path} introduced permanent media deletion')

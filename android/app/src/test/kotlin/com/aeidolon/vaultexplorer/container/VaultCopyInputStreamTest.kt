@@ -9,6 +9,38 @@ import org.junit.Test
 import java.io.IOException
 
 class VaultCopyInputStreamTest {
+    @Test fun aClosedStreamCannotFetchPlaintextAgain() {
+        val fake = FakeSource(source(8))
+        val stream = VaultCopyInputStream(total = 8, chunkSize = 8, readChunk = fake::read)
+        stream.read()
+        stream.close()
+        try { stream.read(); fail("Closed stream fetched plaintext again") }
+        catch (_: IOException) { /* Closed means revoked, not merely an empty cache. */ }
+        assertEquals(1, fake.requests.size)
+    }
+
+    @Test fun cancellationRevokesAlreadyBufferedPlaintext() {
+        val fake = FakeSource(source(8))
+        var cancelled = false
+        val stream = VaultCopyInputStream(total = 8, chunkSize = 8, readChunk = fake::read, isCancelled = { cancelled })
+        stream.read()
+        cancelled = true
+        try { stream.read(); fail("Cancelled stream disclosed buffered bytes") }
+        catch (_: IOException) { /* Cancellation applies to every read. */ }
+        assertTrue(fake.served.single().all { it == 0.toByte() })
+    }
+
+    @Test fun cancellationDuringChunkFetchWipesTheNewBufferBeforeDelivery() {
+        var cancelled = false
+        val bytes = source(8)
+        val output = ByteArray(8)
+        val stream = VaultCopyInputStream(total = 8, readChunk = { _, _ -> cancelled = true; bytes }, isCancelled = { cancelled })
+        try { stream.read(output); fail("Revoked chunk was delivered") }
+        catch (_: IOException) { /* No bytes may escape after revocation is observed. */ }
+        assertTrue(bytes.all { it == 0.toByte() })
+        assertTrue(output.all { it == 0.toByte() })
+        assertEquals(0L, stream.position)
+    }
 
     private fun source(size: Int) = ByteArray(size) { (it * 31 + 7).toByte() }
 

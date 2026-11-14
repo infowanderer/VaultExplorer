@@ -16,9 +16,8 @@ Validation: the standalone Dart check covers ordering, whitespace/case, fuzzy
 subsequences, multiword matches, empty/no-match decks, Unicode and original
 shortcut indices. Run `dart tool/destination_search_check.dart`.
 
-Two widget regression cases are added for filtered Enter routing and no-match
-Enter at narrow width. They have **not been executed in the current environment**:
-the restored Dart SDK works, but the app's Flutter dependency cache is missing.
-The modified UI parses/formats successfully. Full widget checks and a full native
-Android build remain required before releasing this UI or the preceding Undo fix.
-The published APK has not changed.
+The dependency cache was restored using publisher checksums from the existing
+lockfiles. Both widget regressions for filtered Enter routing and no-match Enter
+at narrow width pass, as does the integrated 3,902-test Flutter suite. A full
+native Android build is still in progress for release 62; source test results do
+not establish device behavior or a signed release artifact.

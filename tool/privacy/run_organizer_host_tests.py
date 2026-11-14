@@ -21,8 +21,13 @@ def main():
     package = 'com/aeidolon/vaultexplorer/organizer'
     main_source = root / 'android/app/src/main/kotlin' / package
     test_source = root / 'android/app/src/test/kotlin' / package
+    container_main = main_source.parent / 'container'
+    container_test = test_source.parent / 'container'
     sources = [main_source / 'OrganizerTransfer.kt', main_source / 'RawOrganizerFiles.kt',
-               test_source / 'OrganizerTransferTest.kt', test_source / 'OrganizerCrashBoundaryTest.kt']
+               main_source / 'OrganizerDuplicates.kt',
+               test_source / 'OrganizerTransferTest.kt', test_source / 'OrganizerCrashBoundaryTest.kt',
+               test_source / 'OrganizerDuplicatesTest.kt',
+               container_main / 'VaultCopyInputStream.kt', container_test / 'VaultCopyInputStreamTest.kt']
     with tempfile.TemporaryDirectory(prefix='organizer-test-build-') as directory:
         jar = Path(directory) / 'tests.jar'
         subprocess.run(['bash', str(compiler), *map(str, sources), '-cp', str(junit),
@@ -30,7 +35,9 @@ def main():
         subprocess.run(['java', '-cp', ':'.join(map(str, (jar, junit, hamcrest))),
                         'org.junit.runner.JUnitCore',
                         'com.aeidolon.vaultexplorer.organizer.OrganizerTransferTest',
-                        'com.aeidolon.vaultexplorer.organizer.OrganizerCrashBoundaryTest'], check=True)
+                        'com.aeidolon.vaultexplorer.organizer.OrganizerCrashBoundaryTest',
+                        'com.aeidolon.vaultexplorer.organizer.OrganizerDuplicatesTest',
+                        'com.aeidolon.vaultexplorer.container.VaultCopyInputStreamTest'], check=True)
 
 
 if __name__ == '__main__':

@@ -1,3 +1,5 @@
+// Deliberately runnable with the Dart SDK alone, without Flutter dependencies.
+// ignore_for_file: avoid_relative_lib_imports, avoid_print
 import '../lib/features/photo_sorter/destination_search.dart';
 
 void main() {

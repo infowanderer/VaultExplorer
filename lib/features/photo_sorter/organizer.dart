@@ -365,6 +365,16 @@ class OrganizerRepository {
 class OrganizerBridge {
   const OrganizerBridge(this._channel);
   final MethodChannel _channel;
+  Future<Map<String, dynamic>> exactDuplicates(
+    String id,
+    String root,
+    List<String> paths,
+  ) async => Map<String, dynamic>.from(
+    (await _channel.invokeMapMethod<String, dynamic>(
+      'organizerExactDuplicates',
+      {'id': id, 'root': root, 'paths': paths},
+    ))!,
+  );
   Future<Uint8List?> referenceThumbnail(
     MediaReference reference, {
     int size = 300,

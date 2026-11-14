@@ -55,6 +55,9 @@ class OrganizerHandlers(private val activity: MainActivity, private val secure: 
         }
         if (call.method == "organizerProgress") { result.success(progress[call.argument<String>("id")]); return }
         val activeId = when (call.method) {
+            "organizerExactDuplicates" -> checkNotNull(call.argument<String>("id")).also {
+                require(it.matches(Regex("[a-zA-Z0-9-]{1,64}")))
+            }
             "organizerExecute", "organizerUndo", "organizerReconcile" -> call.argument<String>("id")
             "organizerPrepare", "organizerFingerprint" -> java.util.UUID.randomUUID().toString()
             else -> null
@@ -69,6 +72,18 @@ class OrganizerHandlers(private val activity: MainActivity, private val secure: 
             try {
                 check(currentWorkerIsValid()) { "Organizer session expired" }
                 val value: Any? = when (call.method) {
+                    "organizerExactDuplicates" -> {
+                        val root = checkNotNull(call.argument<String>("root"))
+                        val paths = checkNotNull(call.argument<List<String>>("paths"))
+                        val files = AndroidOrganizerFiles(activity, activity.safStorageManager)
+                        val report = OrganizerDuplicates(files, engine).scan(paths.map { MediaLocation(root, it) },
+                            { token!!.get() || !currentWorkerIsValid() }) { done, total ->
+                            progress[checkNotNull(activeId)] = listOf(done.toLong(), total.toLong())
+                        }
+                        mapOf("examined" to report.examined, "hashed" to report.hashed,
+                            "groups" to report.groups.map { group -> mapOf("sha256" to group.sha256,
+                                "size" to group.size, "paths" to group.members.map { it.file.path }) })
+                    }
                     "organizerFingerprint" -> {
                         val (version, hash) = engine.fingerprint(location(checkNotNull(call.argument<Map<*, *>>("source"))), { token!!.get() })
                         mapOf("identity" to version.identity, "size" to version.size, "modified" to version.modified, "sha256" to hash)

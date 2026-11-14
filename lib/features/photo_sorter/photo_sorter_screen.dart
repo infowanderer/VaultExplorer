@@ -13,6 +13,7 @@ import 'collections_dialog.dart';
 import 'organizer_catalog.dart';
 import 'media_organization_controls.dart';
 import 'media_organization_shortcuts.dart';
+import 'duplicates_dialog.dart';
 import '../browser/viewer/media_input.dart';
 
 typedef PhotoPreviewLoader = Future<Uint8List?> Function(String path, int size);
@@ -550,6 +551,10 @@ class _PhotoSorterScreenState extends State<PhotoSorterScreen>
         ),
         const PopupMenuItem(value: 'rename', child: Text('Batch rename')),
         const PopupMenuItem(
+          value: 'duplicates',
+          child: Text('Find exact duplicates'),
+        ),
+        const PopupMenuItem(
           value: 'collections',
           child: Text('Collections and saved searches'),
         ),
@@ -568,6 +573,17 @@ class _PhotoSorterScreenState extends State<PhotoSorterScreen>
     ],
     onSelected: (value) {
       if (value == 'filter') filterMedia();
+      if (value == 'duplicates') {
+        showDialog<void>(
+          context: context,
+          builder: (_) => DuplicatesDialog(
+            controller: organizer!,
+            paths: selectedPhotos.isEmpty
+                ? List.of(session.photos)
+                : selectedPhotos.toList(),
+          ),
+        );
+      }
       if (value == 'review') unawaited(editReview());
       if (value == 'unstage') clearDecision();
       if (value == 'preferences') unawaited(preferences());
