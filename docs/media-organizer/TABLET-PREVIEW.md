@@ -1,7 +1,8 @@
 # Isolated tablet preview
 
-Checkpoint 61 adds real destinations, protected sessions, verified transfers and
-guarded recovery/undo. See [PHOTO-WORKFLOW.md](PHOTO-WORKFLOW.md) for current
+Build 62 adds fuzzy destinations, exact duplicate review and interactive video
+contact sheets to the protected, verified sorting workflow. Start with
+[TABLET-ACCEPTANCE.md](TABLET-ACCEPTANCE.md). See [PHOTO-WORKFLOW.md](PHOTO-WORKFLOW.md) for current
 behavior, limits and hardware acceptance. The original build receipt below is
 historical; current package provenance is in [PHOTO-WORKFLOW-BUILD.md](PHOTO-WORKFLOW-BUILD.md).
 
@@ -50,7 +51,7 @@ It installs over the preceding preview with the same package and certificate.
 
 1. Use a disposable test folder on internal storage; open the browser's photo
    sorting preview. Check the grid, tap/pen selection, image preview and zoom.
-2. Attach the Book Cover Keyboard/trackpad. Check arrows, Space, 1/2/3 routing,
+2. Attach the Book Cover Keyboard/trackpad. Check arrows, Space, 1–5 ratings, S/T, Alt+1–9 destination copies,
    Backspace and Escape, focus and scrolling. Repeat in landscape and DeX.
 3. Open equivalent disposable fixtures on microSD and USB. Check read-only media,
    unplug/reconnect and revoked access. Unsupported storage should report failure.

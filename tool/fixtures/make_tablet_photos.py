@@ -19,9 +19,12 @@ def make_archive(output):
 These images are drawn test cards, not personal photographs.
 Extract this ZIP to a disposable folder on internal storage, microSD or USB.
 Open Photos in Media Organizer Preview and choose the photo-sorter toolbar icon.
-Check thumbnails, tap/S Pen selection, zoom, arrows, Space and keys 1/2/3.
-The sorter stages labels only. It does not move or copy your files yet.
-Backgrounding the preview clears its in-memory staged labels by design.
+Check thumbnails, tap/S Pen selection, zoom, arrows, Space and ratings 1-5.
+S opens sorting; T opens tags; Alt+1-9 stages saved destination copies.
+Staging changes no media. Run queue performs real verified transfers.
+Decisions are saved; backgrounding pauses transfers. Resume organizer to return.
+Moves retain originals in source-side .MediaOrganizerTrash; keep recovery files.
+Use only these disposable fixtures for initial move, recovery and Undo checks.
 
 12-rotated-exif.jpg should display upright after EXIF orientation handling.
 invalid.jpg is deliberately broken; a placeholder or decode error is expected.
