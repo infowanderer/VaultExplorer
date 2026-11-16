@@ -3768,6 +3768,18 @@ abstract class AppLocalizations {
   /// **'Content Cipher'**
   String get gocryptfsCipherLabel;
 
+  /// Option in the gocryptfs filename picker when creating a vault: every folder gets its own random gocryptfs.diriv (the gocryptfs default)
+  ///
+  /// In en, this message translates to:
+  /// **'Random per folder (default)'**
+  String get gocryptfsNamesRandomIvOption;
+
+  /// Option in the gocryptfs filename picker when creating a vault: gocryptfs -deterministic-names. No gocryptfs.diriv files, so devices that create the same folder offline produce identical ciphertext
+  ///
+  /// In en, this message translates to:
+  /// **'Deterministic (for synced folders)'**
+  String get gocryptfsNamesDeterministicOption;
+
   /// Label above the XChaCha20-Poly1305/AES-256-GCM cipher picker shown when creating a new CryFS vault
   ///
   /// In en, this message translates to:
@@ -4079,6 +4091,270 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Keep current'**
   String get keepCurrentOption;
+
+  /// Tools row: enlarge a standard VeraCrypt volume
+  ///
+  /// In en, this message translates to:
+  /// **'Expand VeraCrypt volume'**
+  String get toolExpandVolumeTitle;
+
+  /// Tools row subtitle for volume expansion
+  ///
+  /// In en, this message translates to:
+  /// **'Make a standard volume larger, like the desktop Volume Expander'**
+  String get toolExpandVolumeSubtitle;
+
+  /// Tools row: enlarge a LUKS1 or LUKS2 file container
+  ///
+  /// In en, this message translates to:
+  /// **'Expand LUKS container'**
+  String get toolExpandLuksVolumeTitle;
+
+  /// Tools row subtitle for LUKS container expansion
+  ///
+  /// In en, this message translates to:
+  /// **'Grow LUKS1 and LUKS2 containers, including fixed-size LUKS2 metadata'**
+  String get toolExpandLuksVolumeSubtitle;
+
+  /// Explains LUKS container expansion behavior and supported in-place filesystem growth
+  ///
+  /// In en, this message translates to:
+  /// **'Back up the container first. Supports LUKS1 and LUKS2. NTFS and ext2/3/4 filesystems can be expanded in place (FAT and exFAT cannot). The added space can be initialized with encrypted zeros. A keyfile replaces the password if used.'**
+  String get luksToolsExpandNote;
+
+  /// Tools row: enlarge a raw BitLocker volume file
+  ///
+  /// In en, this message translates to:
+  /// **'Expand BitLocker container'**
+  String get toolExpandBitLockerVolumeTitle;
+
+  /// Tools row subtitle for BitLocker container expansion
+  ///
+  /// In en, this message translates to:
+  /// **'Grow a BitLocker volume file or VHD/VHDX image and extend its NTFS file system'**
+  String get toolExpandBitLockerVolumeSubtitle;
+
+  /// Explains BitLocker container expansion: what is supported, what is rewritten, and the backup advice
+  ///
+  /// In en, this message translates to:
+  /// **'Back up the container first. This rewrites BitLocker\'s metadata so the encrypted volume covers the added space, so check the result on a copy before relying on it. Works on fully encrypted BitLocker volumes from Windows 7 or later, either as a raw volume file or inside a fixed or dynamic VHD or VHDX. For a disk image enter the new total disk size: the virtual disk and its last partition (MBR or GPT) are enlarged too, so the BitLocker partition must be the last one. BitLocker To Go and encrypt-on-write (used-space-only) volumes are not supported. NTFS can be expanded in place (FAT and exFAT cannot). The added space can optionally be filled with encrypted zeros. Unlock with the password or the 48-digit recovery key.'**
+  String get bitlockerToolsExpandNote;
+
+  /// Credential field label for BitLocker tools: a password or the 48-digit recovery key
+  ///
+  /// In en, this message translates to:
+  /// **'Password or recovery key'**
+  String get bitlockerToolsPasswordLabel;
+
+  /// Tools row: create a hidden volume inside an existing volume
+  ///
+  /// In en, this message translates to:
+  /// **'Add hidden volume'**
+  String get toolHiddenInExistingTitle;
+
+  /// Tools row subtitle for direct-mode hidden volume creation
+  ///
+  /// In en, this message translates to:
+  /// **'Create a hidden volume inside an existing standard volume'**
+  String get toolHiddenInExistingSubtitle;
+
+  /// Button: pick the container file
+  ///
+  /// In en, this message translates to:
+  /// **'Choose container'**
+  String get vcToolsPickContainer;
+
+  /// Shown before a container is picked
+  ///
+  /// In en, this message translates to:
+  /// **'No container selected'**
+  String get vcToolsNoContainer;
+
+  /// Password field of the existing volume
+  ///
+  /// In en, this message translates to:
+  /// **'Volume password'**
+  String get vcToolsPasswordLabel;
+
+  /// PIM field
+  ///
+  /// In en, this message translates to:
+  /// **'PIM (optional)'**
+  String get vcToolsPimLabel;
+
+  /// Target size of the container after expansion, in MiB
+  ///
+  /// In en, this message translates to:
+  /// **'New container size (MiB)'**
+  String get vcToolsNewSizeLabel;
+
+  /// Switch: fill the added space with encrypted data
+  ///
+  /// In en, this message translates to:
+  /// **'Initialize new space'**
+  String get vcToolsInitFreeSpace;
+
+  /// Explains the initialize new space switch
+  ///
+  /// In en, this message translates to:
+  /// **'Fills the added space with data encrypted under the volume key so it cannot be told apart from the rest. Turn off for a quick expand.'**
+  String get vcToolsInitFreeSpaceHint;
+
+  /// Button: run the expansion
+  ///
+  /// In en, this message translates to:
+  /// **'Expand volume'**
+  String get vcToolsExpandAction;
+
+  /// Note about volume expansion
+  ///
+  /// In en, this message translates to:
+  /// **'The container is enlarged first. Then the file system inside is grown into the added space where that is possible without reformatting (NTFS, ext2/3/4). FAT and exFAT cannot be grown in place; their added space stays unallocated. Back up the volume first.'**
+  String get vcToolsExpandNote;
+
+  /// Success message after expansion
+  ///
+  /// In en, this message translates to:
+  /// **'Volume expanded'**
+  String get vcToolsExpandDone;
+
+  /// Switch: also grow the file system inside the volume after expanding it
+  ///
+  /// In en, this message translates to:
+  /// **'Also grow the file system'**
+  String get vcToolsGrowFsToggle;
+
+  /// Explains the grow file system switch
+  ///
+  /// In en, this message translates to:
+  /// **'Lets NTFS and ext2/3/4 volumes use the added space right away, without reformatting.'**
+  String get vcToolsGrowFsToggleHint;
+
+  /// Button: grow only the file system of a volume that was expanded earlier
+  ///
+  /// In en, this message translates to:
+  /// **'Only grow the file system'**
+  String get vcToolsGrowFsOnlyAction;
+
+  /// Result: the file system was grown into the added space
+  ///
+  /// In en, this message translates to:
+  /// **'File system grown: the added space is ready to use.'**
+  String get vcToolsFsGrown;
+
+  /// Result: the file system already fills the volume
+  ///
+  /// In en, this message translates to:
+  /// **'The file system already fills the volume.'**
+  String get vcToolsFsAlreadyFills;
+
+  /// Result: this file system (FAT/exFAT) cannot be grown in place
+  ///
+  /// In en, this message translates to:
+  /// **'This file system cannot be grown in place (FAT and exFAT cannot). The added space stays unallocated until the volume is reformatted; back up its files first.'**
+  String get vcToolsFsUnsupported;
+
+  /// Result: file system growth could not run because files remain open
+  ///
+  /// In en, this message translates to:
+  /// **'Files are still open in the volume. Close them, lock the volume, then retry “Only grow the file system”.'**
+  String get vcToolsFsBusy;
+
+  /// Result: the file system is dirty and must be checked before it can be grown
+  ///
+  /// In en, this message translates to:
+  /// **'The file system is marked as needing a check. Run Check & Repair on the volume, then use “Only grow the file system”.'**
+  String get vcToolsFsNeedsCheck;
+
+  /// Result: growing the file system failed
+  ///
+  /// In en, this message translates to:
+  /// **'The file system could not be grown. The volume itself is expanded; run Check & Repair on it before using it.'**
+  String get vcToolsFsFailed;
+
+  /// Button: analyze the outer volume for hidden volume space
+  ///
+  /// In en, this message translates to:
+  /// **'Check free space'**
+  String get vcToolsAnalyzeAction;
+
+  /// Label before the maximum hidden volume size
+  ///
+  /// In en, this message translates to:
+  /// **'Largest possible hidden volume'**
+  String get vcToolsMaxHidden;
+
+  /// Shown when the outer volume has no free space at its end
+  ///
+  /// In en, this message translates to:
+  /// **'There is no room for a hidden volume: the end of the outer volume is in use.'**
+  String get vcToolsNoRoom;
+
+  /// Size of the hidden volume in MiB
+  ///
+  /// In en, this message translates to:
+  /// **'Hidden volume size (MiB)'**
+  String get vcToolsHiddenSizeLabel;
+
+  /// Password for the new hidden volume
+  ///
+  /// In en, this message translates to:
+  /// **'Hidden volume password'**
+  String get vcToolsHiddenPasswordLabel;
+
+  /// Confirmation of the hidden volume password
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm hidden volume password'**
+  String get vcToolsHiddenConfirmLabel;
+
+  /// File system of the hidden volume
+  ///
+  /// In en, this message translates to:
+  /// **'Hidden volume file system'**
+  String get vcToolsHiddenFsLabel;
+
+  /// Switch: skip wiping the hidden volume area
+  ///
+  /// In en, this message translates to:
+  /// **'Quick format'**
+  String get vcToolsQuickFormat;
+
+  /// Button: create the hidden volume
+  ///
+  /// In en, this message translates to:
+  /// **'Create hidden volume'**
+  String get vcToolsCreateHiddenAction;
+
+  /// Success message after creating the hidden volume
+  ///
+  /// In en, this message translates to:
+  /// **'Hidden volume created'**
+  String get vcToolsHiddenDone;
+
+  /// Warning about hidden volumes
+  ///
+  /// In en, this message translates to:
+  /// **'The hidden volume takes the free space at the end of the outer volume. Afterwards, mount the outer volume with hidden volume protection whenever you write to it, or the hidden volume can be overwritten.'**
+  String get vcToolsHiddenNote;
+
+  /// Hidden volume password confirmation mismatch
+  ///
+  /// In en, this message translates to:
+  /// **'The passwords do not match.'**
+  String get vcToolsPasswordsDiffer;
+
+  /// Invalid size input
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid size.'**
+  String get vcToolsInvalidSize;
+
+  /// No credentials given
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the volume password or add a keyfile.'**
+  String get vcToolsCredentialsRequired;
 
   /// Checkbox label for mounting in read-only mode
   ///
@@ -11113,6 +11389,18 @@ abstract class AppLocalizations {
   /// **'Display dotfiles and system folders'**
   String get showHiddenFilesDesc;
 
+  /// Toggle label for showing media in folders containing a .nomedia file
+  ///
+  /// In en, this message translates to:
+  /// **'Show Media Hidden by .nomedia'**
+  String get showNoMediaFilesLabel;
+
+  /// Toggle description for showing media in folders containing a .nomedia file
+  ///
+  /// In en, this message translates to:
+  /// **'Include media in folders containing a .nomedia file'**
+  String get showNoMediaFilesDesc;
+
   /// Checkbox label to remember choice and not prompt again
   ///
   /// In en, this message translates to:
@@ -14228,7 +14516,7 @@ abstract class AppLocalizations {
   /// Subtitle explaining status badge details
   ///
   /// In en, this message translates to:
-  /// **'Shows slideshow timer or static photo indicator'**
+  /// **'Shows the slideshow countdown while a slideshow is playing'**
   String get statusBadgeSubtitle;
 
   /// Section header for top bar actions
@@ -23582,13 +23870,13 @@ abstract class AppLocalizations {
   /// Heading for the symbolic links section in vault listing details
   ///
   /// In en, this message translates to:
-  /// **'Symbolic links'**
+  /// **'Shortcuts'**
   String get vaultListingSymbolicLinksTitle;
 
-  /// Explains that symbolic links are not followed and can be tapped to copy their target
+  /// Explains that shortcut entries open relative targets within the vault and reject absolute or broken targets
   ///
   /// In en, this message translates to:
-  /// **'A symbolic link points somewhere else. It is never opened or followed here; tap one to copy where it points.'**
+  /// **'Shortcuts open their targets when tapped. Relative targets stay inside this vault; absolute or broken targets cannot be opened.'**
   String get vaultListingSymbolicLinksNote;
 
   /// Heading for vault entries that could not be listed in the current folder
@@ -23884,6 +24172,396 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No city within {km} km: grouped by coordinates'**
   String galleryPlaceHintCoordinates(int km);
+
+  /// Title of the switch in a Cryptomator vault's settings that controls whether key-file backups are written when the vault is unlocked
+  ///
+  /// In en, this message translates to:
+  /// **'Back up key files when unlocking'**
+  String get cryptomatorBackupKeyFilesTitle;
+
+  /// Subtitle of the Cryptomator key-file backup switch: what is copied, that it applies from the next unlock, and that read-only sessions never write
+  ///
+  /// In en, this message translates to:
+  /// **'Keeps a copy of masterkey.cryptomator and vault.cryptomator next to the originals, like Cryptomator on desktop. Applies from the next unlock. Read-only sessions never write.'**
+  String get cryptomatorBackupKeyFilesSubtitle;
+
+  /// Title of the settings row (and screen) that upgrades a Cryptomator vault from the older format 7 to format 8
+  ///
+  /// In en, this message translates to:
+  /// **'Upgrade vault format'**
+  String get cryptomatorUpgradeTitle;
+
+  /// Subtitle of the upgrade row for a vault that is still Cryptomator format 7
+  ///
+  /// In en, this message translates to:
+  /// **'This vault uses the older format 7.'**
+  String get cryptomatorUpgradeSubtitle;
+
+  /// Subtitle of the disabled upgrade row while the vault is unlocked
+  ///
+  /// In en, this message translates to:
+  /// **'Lock the vault to upgrade it'**
+  String get cryptomatorUpgradeLockFirst;
+
+  /// Warning on the Cryptomator format upgrade screen: what changes, that it is one-way, that older Cryptomator cannot open the vault, where the key-file copy goes, and that sync must finish first
+  ///
+  /// In en, this message translates to:
+  /// **'Upgrading changes this vault to format 8. It cannot be undone, and Cryptomator versions older than 1.6 will no longer be able to open the vault afterwards.\n\nA copy of the current key file is kept as masterkey.cryptomator.<id>.bkup. If another app syncs this vault, let it finish syncing first.'**
+  String get cryptomatorUpgradeWarning;
+
+  /// Checkbox on the Cryptomator upgrade screen the user must tick before the upgrade button works
+  ///
+  /// In en, this message translates to:
+  /// **'I understand this can\'t be undone'**
+  String get cryptomatorUpgradeConfirm;
+
+  /// Button that runs the Cryptomator vault format upgrade
+  ///
+  /// In en, this message translates to:
+  /// **'Upgrade'**
+  String get cryptomatorUpgradeAction;
+
+  /// Snackbar shown after a Cryptomator vault was upgraded to format 8
+  ///
+  /// In en, this message translates to:
+  /// **'Vault upgraded to format 8'**
+  String get cryptomatorUpgradedMessage;
+
+  /// Error shown when the format upgrade is refused because the vault is unlocked
+  ///
+  /// In en, this message translates to:
+  /// **'Lock the vault first'**
+  String get cryptomatorUpgradeUnlockedError;
+
+  /// Warning row for a Cryptomator vault whose vault.cryptomator is missing (usually not synced yet); the user must wait and must not upgrade
+  ///
+  /// In en, this message translates to:
+  /// **'vault.cryptomator is missing. If another app syncs this vault, wait for it to finish, then try again. Do not upgrade.'**
+  String get cryptomatorConfigMissingWarning;
+
+  /// Generic error when the Cryptomator format upgrade fails without a more specific message
+  ///
+  /// In en, this message translates to:
+  /// **'Could not upgrade the vault'**
+  String get cryptomatorUpgradeFailedMessage;
+
+  /// Menu entry and dialog title for creating a symbolic link in a Cryptomator vault
+  ///
+  /// In en, this message translates to:
+  /// **'New symbolic link'**
+  String get newSymbolicLinkTitle;
+
+  /// Hint of the name field when creating or renaming a symbolic link
+  ///
+  /// In en, this message translates to:
+  /// **'Link name'**
+  String get symbolicLinkNameHint;
+
+  /// Hint of the field where the user types what a new symbolic link points to
+  ///
+  /// In en, this message translates to:
+  /// **'Points to'**
+  String get symbolicLinkTargetHint;
+
+  /// Helper text under the symbolic link target field: relative targets are resolved within the vault; absolute targets are not followed
+  ///
+  /// In en, this message translates to:
+  /// **'Stored exactly as written. Relative targets are resolved inside this vault when opened; absolute targets are not followed.'**
+  String get symbolicLinkTargetHelper;
+
+  /// Error under the symbolic link target field when it exceeds the 32,767-byte limit
+  ///
+  /// In en, this message translates to:
+  /// **'Target is too long (maximum 32,767 bytes)'**
+  String get symbolicLinkTargetTooLong;
+
+  /// Error under the symbolic link target field when it contains a null character
+  ///
+  /// In en, this message translates to:
+  /// **'Target can\'t contain a null character'**
+  String get symbolicLinkTargetInvalid;
+
+  /// Error when the chosen symbolic link name is already used by a file, folder or another link
+  ///
+  /// In en, this message translates to:
+  /// **'A file, folder or link with this name already exists'**
+  String get symbolicLinkNameTaken;
+
+  /// Title of the confirmation dialog for deleting a symbolic link
+  ///
+  /// In en, this message translates to:
+  /// **'Delete symbolic link?'**
+  String get deleteSymbolicLinkTitle;
+
+  /// Body of the confirmation dialog for deleting a symbolic link; says only the link is removed, not what it points to
+  ///
+  /// In en, this message translates to:
+  /// **'Delete the link \"{name}\"? Only the link is removed; what it points to is not touched.'**
+  String deleteSymbolicLinkMessage(String name);
+
+  /// Title of the dialog for renaming a symbolic link
+  ///
+  /// In en, this message translates to:
+  /// **'Rename symbolic link'**
+  String get symbolicLinkRenameTitle;
+
+  /// Tooltip for the button that opens the vault target picker when creating a symbolic link
+  ///
+  /// In en, this message translates to:
+  /// **'Browse vault'**
+  String get symbolicLinkBrowseTarget;
+
+  /// Title of the in-vault file and folder picker for a symbolic link target
+  ///
+  /// In en, this message translates to:
+  /// **'Choose shortcut target'**
+  String get symbolicLinkSelectTargetTitle;
+
+  /// Button to choose the currently displayed folder as a symbolic link target
+  ///
+  /// In en, this message translates to:
+  /// **'Select this folder'**
+  String get symbolicLinkSelectThisFolder;
+
+  /// Message shown when the symbolic-link target picker cannot load a folder
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t load this folder'**
+  String get symbolicLinkPickerLoadError;
+
+  /// Label identifying a symbolic link as a shortcut in the target picker
+  ///
+  /// In en, this message translates to:
+  /// **'Shortcut'**
+  String get shortcutBadge;
+
+  /// Message shown when the current folder has no entries
+  ///
+  /// In en, this message translates to:
+  /// **'This folder is empty'**
+  String get emptyFolder;
+
+  /// Helper text under the symbolic link target field for native LUKS/VeraCrypt filesystems
+  ///
+  /// In en, this message translates to:
+  /// **'Use a relative path inside this container. The target may be missing; renaming or deleting the link does not change the target.'**
+  String get symbolicLinkTargetHelperRelative;
+
+  /// Error under the symbolic link target field when a native target is absolute or escapes the container root
+  ///
+  /// In en, this message translates to:
+  /// **'Target must be a relative path that stays inside this container.'**
+  String get symbolicLinkTargetOutsideVault;
+
+  /// Shown when the symbolic link target picker cannot build a relative target, e.g. because a folder link on the way cannot be followed safely; the user types the target instead
+  ///
+  /// In en, this message translates to:
+  /// **'Can\'t build a relative target from here. Type the target instead.'**
+  String get symbolicLinkPickerUnresolvable;
+
+  /// No description provided for @editMetadataAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit metadata'**
+  String get editMetadataAction;
+
+  /// No description provided for @editTagsAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit tags'**
+  String get editTagsAction;
+
+  /// No description provided for @editDateTimeAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit date & time'**
+  String get editDateTimeAction;
+
+  /// No description provided for @removeMetadataAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove metadata'**
+  String get removeMetadataAction;
+
+  /// No description provided for @metadataFormatsNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Tags, dates and removal are written into JPEG, PNG and WebP images. Other files only get a new modified date.'**
+  String get metadataFormatsNote;
+
+  /// No description provided for @metadataReadOnlyMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'This vault is read-only'**
+  String get metadataReadOnlyMessage;
+
+  /// No description provided for @tagsAddHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Add tags, separated by commas'**
+  String get tagsAddHint;
+
+  /// No description provided for @tagsNoneYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No tags yet'**
+  String get tagsNoneYet;
+
+  /// No description provided for @dateModeSet.
+  ///
+  /// In en, this message translates to:
+  /// **'Set'**
+  String get dateModeSet;
+
+  /// No description provided for @dateModeShift.
+  ///
+  /// In en, this message translates to:
+  /// **'Shift'**
+  String get dateModeShift;
+
+  /// No description provided for @dateModeFromModified.
+  ///
+  /// In en, this message translates to:
+  /// **'From modified date'**
+  String get dateModeFromModified;
+
+  /// No description provided for @dateModeFromName.
+  ///
+  /// In en, this message translates to:
+  /// **'From file name'**
+  String get dateModeFromName;
+
+  /// No description provided for @dateShiftLater.
+  ///
+  /// In en, this message translates to:
+  /// **'Later'**
+  String get dateShiftLater;
+
+  /// No description provided for @dateShiftEarlier.
+  ///
+  /// In en, this message translates to:
+  /// **'Earlier'**
+  String get dateShiftEarlier;
+
+  /// No description provided for @dateDaysLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Days'**
+  String get dateDaysLabel;
+
+  /// No description provided for @dateHoursLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Hours'**
+  String get dateHoursLabel;
+
+  /// No description provided for @dateMinutesLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Minutes'**
+  String get dateMinutesLabel;
+
+  /// No description provided for @dateAlsoSetModified.
+  ///
+  /// In en, this message translates to:
+  /// **'Also set the file\'s modified date'**
+  String get dateAlsoSetModified;
+
+  /// No description provided for @dateFromNameMatches.
+  ///
+  /// In en, this message translates to:
+  /// **'{matched} of {total} file names contain a date'**
+  String dateFromNameMatches(int matched, int total);
+
+  /// No description provided for @stripExifLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Exif (camera, date, location)'**
+  String get stripExifLabel;
+
+  /// No description provided for @stripXmpLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'XMP (tags, rating, edit data)'**
+  String get stripXmpLabel;
+
+  /// No description provided for @stripIptcLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'IPTC / Photoshop (captions, credits)'**
+  String get stripIptcLabel;
+
+  /// No description provided for @stripCommentsLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Comments'**
+  String get stripCommentsLabel;
+
+  /// No description provided for @stripIccLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Colour profile (may change colours)'**
+  String get stripIccLabel;
+
+  /// No description provided for @stripKeepOrientationLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep orientation'**
+  String get stripKeepOrientationLabel;
+
+  /// No description provided for @stripKeepOrientationDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Without it, photos taken sideways may show rotated'**
+  String get stripKeepOrientationDesc;
+
+  /// No description provided for @stripWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'This rewrites the files and cannot be undone.'**
+  String get stripWarning;
+
+  /// No description provided for @metadataProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Updating {done} of {total}'**
+  String metadataProgress(int done, int total);
+
+  /// No description provided for @metadataResultUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 file updated} other{{count} files updated}}'**
+  String metadataResultUpdated(int count);
+
+  /// No description provided for @metadataResultUnchanged.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing needed changing'**
+  String get metadataResultUnchanged;
+
+  /// No description provided for @metadataResultSkipped.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} skipped (not supported)'**
+  String metadataResultSkipped(int count);
+
+  /// No description provided for @metadataResultFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} failed'**
+  String metadataResultFailed(int count);
+
+  /// No description provided for @showNoMediaFoldersLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Show .nomedia folders'**
+  String get showNoMediaFoldersLabel;
+
+  /// No description provided for @showNoMediaFoldersDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Include folders marked with a .nomedia file, which gallery apps normally skip'**
+  String get showNoMediaFoldersDesc;
 }
 
 class _AppLocalizationsDelegate

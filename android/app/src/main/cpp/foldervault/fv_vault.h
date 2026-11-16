@@ -37,9 +37,10 @@ struct Progress {
     virtual bool cancelled() { return false; }
 };
 
-// Snapshot of the key material a live vault holds, for the Check & Repair
-// tooling that still runs in Kotlin. Format-specific layout, documented in
-// fv_vault.cpp next to each exporter.
+// Snapshot of the key material a live vault holds, for in-process tooling that
+// works next to an unlocked session (Check & Repair, fv_check.h). Hosts must
+// not forward it across a process or language boundary. Format-specific
+// layout, documented next to each exporter.
 struct KeyExport {
     VaultFormat format;
     std::vector<std::pair<std::string, Bytes>> fields;
@@ -90,9 +91,11 @@ public:
     // ---- symlinks & hidden entries (Cryptomator; the other engines keep these defaults) ------------
     // Symbolic links are deliberately NOT part of listDirectory(): they are neither files nor folders, and
     // every existing consumer (export, sync, scanners, ...) would otherwise have to learn to skip them.
-    // A link is never followed: readFileChunk/extractFile/createDirectory/... on a link path fail, and
-    // deleteFile/renameFile act on the link node itself.
-    // Lists only the symbolic links of [path] (isSymlink = true, size = target length in bytes).
+    // Cryptomator resolves relative link targets within the same vault for reads, writes and directory
+    // traversal (with a 40-link hop limit, so cycles fail closed); absolute targets are refused. deleteFile/renameFile unlink or
+    // rename the link node itself, as POSIX does.
+    // Lists only the symbolic links of [path] (isSymlink = true; isDir reflects a directory target; size is
+    // target length in bytes for file/broken links and 0 for directory links).
     virtual bool listSymlinks(const std::string& /*path*/, std::vector<DirEntry>& out) { out.clear(); return true; }
     // The link target (UTF-8, at most 32767 bytes), or nullopt if [path] is not a readable symlink.
     virtual std::optional<std::string> readSymlink(const std::string& /*path*/) { return std::nullopt; }
@@ -121,7 +124,9 @@ public:
 // is known to be right. May throw fv::Error. Empty = keep the bootstrap.
 using StorageFactory = std::function<std::shared_ptr<Storage>()>;
 
-enum class OpenStatus { Ok, WrongPassword, InvalidVault };
+// SingleClientMode (CryFS only): the vault is locked to another device's client id ("single-client mode") and
+// this was a read-write open without HostEnv::cryfsDisableSingleClientMode. Nothing has been changed.
+enum class OpenStatus { Ok, WrongPassword, InvalidVault, SingleClientMode };
 
 struct OpenResult {
     OpenStatus status = OpenStatus::InvalidVault;
@@ -149,6 +154,9 @@ struct HostEnv {
     // effort: an existing backup is verified, never overwritten, and a failure never blocks the unlock.
     // One file per distinct content, so this only ever adds a file when the original changed.
     bool backupKeyFilesOnOpen = true;
+    // CryFS, read-write opens only: the user agreed to turn off single-client mode for a vault that was locked to
+    // another device. Like official CryFS, the lock is then removed from cryfs.config.
+    bool cryfsDisableSingleClientMode = false;
 };
 
 enum class GocryptfsCipher { Aes256Gcm, XChaCha20Poly1305, AesSiv };
@@ -161,10 +169,24 @@ bool looksLikeCryfs(Storage& s);
 struct GocryptfsCreateOptions {
     GocryptfsCipher cipher = GocryptfsCipher::Aes256Gcm;
     bool plaintextNames = false;
+    // gocryptfs -deterministic-names: no gocryptfs.diriv files; every folder uses the all-zero IV, so one
+    // cleartext name always encrypts to the same ciphertext name. Use it when the ciphertext folder is
+    // synchronised between devices: two devices that create the same folder (or file) while offline then
+    // produce the *same* ciphertext entries instead of two conflicting gocryptfs.diriv files. The price is
+    // that equal names in different folders are equal on disk. Ignored with plaintextNames, like gocryptfs.
+    bool deterministicNames = false;
+    // gocryptfs -longnamemax: encrypted names longer than this are stored as gocryptfs.longname.* hashes.
+    // 0 (or 255) = the default; otherwise 62..255. Ignored with plaintextNames.
+    int longNameMax = 0;
+    // gocryptfs -scryptn: scrypt cost parameter logN, 10..28.
+    int scryptLogN = 16;
 };
 struct CryfsCreateOptions {
     std::string cipher = "xchacha20-poly1305";
     int blocksizeBytes = 32 * 1024;
+    // scrypt cost recorded in cryfs.config (official CryFS reads any value). 0 = the app default
+    // (N=2^17, r=8, p=2 -- official C++ CryFS uses N=2^20, r=4, p=8).
+    int scryptLogN = 0, scryptR = 0, scryptP = 0;
 };
 
 // [password] is raw UTF-8 bytes. The caller keeps ownership and wipes it.
@@ -183,6 +205,15 @@ PlainResult changeCryptomatorPassword(Storage& s, const uint8_t* oldPw, size_t o
 // genuine format 7 vault (no vault.cryptomator yet, masterkey version 7) and aborts without changing a
 // byte if the masterkey backup cannot be written.
 PlainResult migrateCryptomator7To8(Storage& s, const uint8_t* pw, size_t pwLen);
+// Password-free look at a Cryptomator vault folder's format, from its files alone (nothing is decrypted or
+// written). Shares its classification with migrateCryptomator7To8, so "7" here means exactly "the migration
+// would accept this vault if the password is right":
+//    0  no readable masterkey.cryptomator (not a Cryptomator vault, or it cannot be read right now)
+//    7  no vault.cryptomator and the key file is version 7 -- migratable
+//    8  vault.cryptomator exists (a current vault; nothing to migrate)
+//   -8  no vault.cryptomator but the key file is version 8 or newer -- the config has not synced yet; NEVER migrate
+//    6  no vault.cryptomator and the key file is older than 7 -- cannot be migrated here
+int probeCryptomatorFormat(Storage& s);
 
 OpenResult openCryfs(std::shared_ptr<Storage> s, const uint8_t* pw, size_t pwLen, bool readOnly, const HostEnv& env, const StorageFactory& sessionStorage = {});
 OpenResult openCryfsWithCombinedKey(std::shared_ptr<Storage> s, const uint8_t* key, size_t keyLen, bool readOnly, const HostEnv& env, const StorageFactory& sessionStorage = {});

@@ -85,6 +85,67 @@ internal object NativeEngine {
         newHashId: Int = 255
     ): Boolean
 
+    /**
+     * Grows a standard VeraCrypt file container (see ExpandOutcome in container_create.h for the result codes) and,
+     * when [growFileSystem] is set, the file system inside. Returns [container outcome, file-system step, kind]:
+     * step is -1 when not run, otherwise an FsGrowStatus (fs_grow.h); kind 0 unknown, 1 FAT12, 2 FAT16, 3 FAT32,
+     * 4 exFAT, 5 NTFS, 6 ext2, 7 ext3, 8 ext4. Null on a native exception.
+     */
+    @JvmStatic
+    external fun expandVeraCryptContainerNative(
+        fd: Int, password: String, pim: Int, cipherId: Int, hashId: Int,
+        keyfileFds: IntArray?, newSizeBytes: Long, initFreeSpace: Boolean, growFileSystem: Boolean
+    ): IntArray?
+
+    /** Expands a LUKS1/LUKS2 file container and optionally grows its NTFS/ext filesystem. */
+    @JvmStatic
+    external fun expandLuksContainerNative(
+        fd: Int, password: String, keyfileFds: IntArray?,
+        newSizeBytes: Long, initFreeSpace: Boolean, growFileSystem: Boolean
+    ): IntArray?
+
+    /**
+     * Expands a raw single-volume BitLocker file container (rewrites and re-seals the FVE metadata) and optionally
+     * grows its NTFS file system. [password] is a password or a 48-digit recovery key. Same result array as
+     * [expandVeraCryptContainerNative]; container outcome 9 means the file is not a BitLocker volume.
+     */
+    @JvmStatic
+    external fun expandBitLockerContainerNative(
+        fd: Int, password: String, newSizeBytes: Long, initFreeSpace: Boolean, growFileSystem: Boolean
+    ): IntArray?
+
+    /** Only the NTFS step for a BitLocker volume expanded earlier. */
+    @JvmStatic
+    external fun growBitLockerFileSystemNative(fd: Int, password: String): IntArray?
+
+    /** Only the file-system step for a LUKS volume expanded earlier. */
+    @JvmStatic
+    external fun growLuksFileSystemNative(
+        fd: Int, password: String, keyfileFds: IntArray?
+    ): IntArray?
+
+    /** Only the file-system step for a volume expanded earlier; same result array as [expandVeraCryptContainerNative]. */
+    @JvmStatic
+    external fun growVeraCryptFileSystemNative(
+        fd: Int, password: String, pim: Int, cipherId: Int, hashId: Int, keyfileFds: IntArray?
+    ): IntArray?
+
+    /** [outcome, fsKind, clusterSize, maxHiddenBytes]; outcome codes as in HiddenHostOutcome (container_create.h). */
+    @JvmStatic
+    external fun analyzeHiddenVolumeHostNative(
+        fd: Int, password: String, pim: Int, cipherId: Int, hashId: Int, keyfileFds: IntArray?
+    ): LongArray?
+
+    /** Adds a hidden volume to an existing standard volume (desktop VeraCrypt "direct mode"); outcome codes as above. */
+    @JvmStatic
+    external fun createHiddenVolumeInExistingNative(
+        fd: Int,
+        outerPassword: String, outerPim: Int, outerCipherId: Int, outerHashId: Int, outerKeyfileFds: IntArray?,
+        hiddenPassword: String, hiddenPim: Int, hiddenFileSystem: String, hiddenSizeBytes: Long,
+        hiddenCipherId: Int, hiddenHashId: Int, hiddenKeyfileFds: IntArray?, quickFormat: Boolean,
+        userEntropy: ByteArray?
+    ): Int
+
     @JvmStatic
     external fun changeLuksContainerPasswordNative(
         fd: Int, oldPassword: String, newPassword: String,
@@ -156,6 +217,9 @@ internal object NativeEngine {
     @JvmStatic external fun getMatchedHashId(volId: Int): Int
     @JvmStatic external fun getContainerFormat(volId: Int): Int
     @JvmStatic external fun listDirectory(dirPath: String, volId: Int): Array<String>?
+    @JvmStatic external fun listSymlinks(dirPath: String, volId: Int): Array<String>?
+    @JvmStatic external fun readSymlink(path: String, volId: Int): String?
+    @JvmStatic external fun createSymlink(path: String, target: String, volId: Int): Boolean
     @JvmStatic external fun getFileSize(fileName: String, volId: Int): Long
     @JvmStatic external fun getFolderSize(dirPath: String, volId: Int): Long
     @JvmStatic external fun readFileChunk(fileName: String, offset: Long, length: Int, volId: Int): ByteArray?
@@ -204,6 +268,7 @@ internal object NativeEngine {
         keyfileFds: IntArray? = null, quickFormat: Boolean = false,
         deviceSectorCount: Long = 0L, operationId: String = "",
         userEntropy: ByteArray? = null,
+        deviceSectorSize: Int = 512,
     ): Map<String, Any?>?
 
     /** PBKDF2-HMAC over raw password bytes. [hashKind]: 1 = SHA-1, 2 = SHA-256. */
@@ -214,6 +279,12 @@ internal object NativeEngine {
 
     @JvmStatic
     external fun scryptNative(
+        passphrase: ByteArray, salt: ByteArray, N: Int, r: Int, p: Int, dkLen: Int
+    ): ByteArray?
+
+    /** Like [scryptNative] but keeps at most 256 MiB of scrypt memory (slower for big N*r); null if unsupported. */
+    @JvmStatic
+    external fun scryptLowMemNative(
         passphrase: ByteArray, salt: ByteArray, N: Int, r: Int, p: Int, dkLen: Int
     ): ByteArray?
 
@@ -262,6 +333,7 @@ internal object NativeEngine {
         quickFormat: Boolean = false,
         deviceSectorCount: Long = 0L, operationId: String = "",
         userEntropy: ByteArray? = null,
+        deviceSectorSize: Int = 512,
     ): Map<String, Any?>?
 
     @JvmStatic external fun openStream(targetFileName: String, volId: Int): Long

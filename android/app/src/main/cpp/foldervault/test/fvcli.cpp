@@ -6,9 +6,16 @@
 //
 // commands: create [opts] | ls P | cat P | get P LOCAL | put P LOCAL |
 //           putchunks P LOCAL | mkdir P | mv A B | rm P | size P | du P |
-//           passwd NEWPW | migrate7to8 | info | touch P EPOCH |
-//           lsl P (symlinks of folder P) | lslt P (same, with mtime) | readlink P | symlink P TARGET | hidden P (entries not shown)
-// env: FV_LOCALSTATE (cryfs integrity state dir), FV_CIPHER, FV_PLAINNAMES
+//           check | repair   (Check & Repair; password "-" = none: structure-only check. Prints one
+//                       "ISSUE <TAB> severity <TAB> path <TAB> message" line per finding; exit 0 healthy,
+//                       4 issues remain, 3 wrong password, 1 not a vault / refused)
+//           passwd NEWPW | migrate7to8 | probe | info | touch P EPOCH |
+//           lsl P (symlinks of folder P) | lslt P (same, with mtime) | readlink P | symlink P TARGET | hidden P (entries not shown) |
+//           tree [P]   (recursive, one "D|F <TAB> size <TAB> sha256 <TAB> path" line per entry, names
+//                       escaped with \\ \n \r \t so any name round-trips; files that cannot be read
+//                       get sha256 "ERROR")
+// env: FV_LOCALSTATE (cryfs integrity state dir), FV_CIPHER, FV_PLAINNAMES,
+//      gocryptfs create: FV_DETERMINISTIC (-deterministic-names), FV_LONGNAMEMAX, FV_SCRYPTN
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -16,6 +23,8 @@
 #include <iostream>
 #include <sstream>
 
+#include "../fv_check.h"
+#include "../fv_crypto.h"
 #include "../fv_vault.h"
 
 using namespace fv;
@@ -25,6 +34,40 @@ static Bytes slurp(const std::string& p) {
     std::stringstream ss; ss << f.rdbuf();
     std::string s = ss.str();
     return Bytes(s.begin(), s.end());
+}
+
+
+static std::string escName(const std::string& s) {
+    std::string o;
+    for (char c : s) {
+        if (c == '\\') o += "\\\\"; else if (c == '\n') o += "\\n"; else if (c == '\r') o += "\\r"; else if (c == '\t') o += "\\t"; else o += c;
+    }
+    return o;
+}
+
+static void walkTree(Vault& v, const std::string& dir) {
+    std::vector<DirEntry> es;
+    if (!v.listDirectory(dir, es)) { std::printf("E\t0\tERROR\t%s\n", escName(dir).c_str()); return; }
+    std::sort(es.begin(), es.end(), [](const DirEntry& a, const DirEntry& b) { return a.name < b.name; });
+    for (auto& e : es) {
+        std::string path = dir.empty() ? e.name : dir + "/" + e.name;
+        if (e.isDir) {
+            std::printf("D\t0\t-\t%s\n", escName(path).c_str());
+            walkTree(v, path);
+            continue;
+        }
+        Bytes all;
+        bool ok = true;
+        for (int64_t off = 0;;) {
+            auto c = v.readFileChunk(path, off, 1 << 20);
+            if (!c) { ok = false; break; }
+            if (c->empty()) break;
+            all.insert(all.end(), c->begin(), c->end());
+            off += (int64_t)c->size();
+        }
+        std::string h = ok ? toHex(crypto::hash(crypto::Md::Sha256, all.data(), all.size()).data(), 32) : "ERROR";
+        std::printf("F\t%lld\t%s\t%s\n", (long long)(ok ? (int64_t)all.size() : e.size), h.c_str(), escName(path).c_str());
+    }
 }
 
 struct FileSrc : ByteSource {
@@ -51,6 +94,9 @@ int main(int argc, char** argv) {
             if (cipher == "xchacha") o.cipher = GocryptfsCipher::XChaCha20Poly1305;
             else if (cipher == "aessiv") o.cipher = GocryptfsCipher::AesSiv;
             o.plaintextNames = std::getenv("FV_PLAINNAMES") != nullptr;
+            o.deterministicNames = std::getenv("FV_DETERMINISTIC") != nullptr;
+            if (const char* l = std::getenv("FV_LONGNAMEMAX")) o.longNameMax = std::atoi(l);
+            if (const char* n = std::getenv("FV_SCRYPTN")) o.scryptLogN = std::atoi(n);
             r = createGocryptfs(*st, p, pw.size(), o);
         } else if (fmt == "cryptomator") {
             r = createCryptomator(*st, p, pw.size());
@@ -76,12 +122,46 @@ int main(int argc, char** argv) {
         return 0;
     }
 
+    if (cmd == "probe") {   // password-free format check of a Cryptomator folder; prints 0 / 7 / 8 / -8 / 6
+        if (fmt != "cryptomator") { std::fprintf(stderr, "only cryptomator\n"); return 2; }
+        std::printf("%d\n", probeCryptomatorFormat(*st));
+        return 0;
+    }
     if (cmd == "migrate7to8") {
         if (fmt != "cryptomator") { std::fprintf(stderr, "only cryptomator\n"); return 2; }
         PlainResult r = migrateCryptomator7To8(*st, p, pw.size());
         if (r.status != OpenStatus::Ok) { std::fprintf(stderr, "migrate failed (%d): %s\n", (int)r.status, r.message.c_str()); return r.status == OpenStatus::WrongPassword ? 3 : 1; }
         std::puts("migrated");
         return 0;
+    }
+
+    if (cmd == "check" || cmd == "repair") {
+        const VaultFormat vf = fmt == "gocryptfs" ? VaultFormat::Gocryptfs : fmt == "cryptomator" ? VaultFormat::Cryptomator : VaultFormat::Cryfs;
+        check::Credentials cr;
+        if (pw != "-") { cr.password = p; cr.passwordLen = pw.size(); }
+        check::Hooks hooks;
+        hooks.log = [](const std::string& m) { std::fprintf(stderr, "%s\n", m.c_str()); };
+        auto printIssues = [](const std::vector<check::Issue>& v) {
+            for (const auto& i : v) std::printf("ISSUE\t%d\t%s\t%s\n", (int)i.severity, escName(i.path).c_str(), escName(i.message).c_str());
+        };
+        if (cmd == "check") {
+            auto r = check::checkVault(vf, *st, cr, env, hooks);
+            if (r.outcome != check::Outcome::Ok) {
+                std::fprintf(stderr, "%s: %s\n", r.outcome == check::Outcome::WrongPassword ? "wrong password" : "invalid", r.message.c_str());
+                return r.outcome == check::Outcome::WrongPassword ? 3 : 1;
+            }
+            printIssues(r.report.issues);
+            std::printf("checked %d file(s), deep scan %s, %s\n", r.report.filesScanned, r.report.deepScan ? "yes" : "no", r.report.healthy() ? "healthy" : "NOT healthy");
+            return r.report.healthy() ? 0 : 4;
+        }
+        auto r = check::repairVault(vf, *st, cr, env, hooks);
+        if (r.outcome != check::Outcome::Ok) {
+            std::fprintf(stderr, "%s: %s\n", r.outcome == check::Outcome::WrongPassword ? "wrong password" : "refused", r.message.c_str());
+            return r.outcome == check::Outcome::WrongPassword ? 3 : 1;
+        }
+        printIssues(r.report.remaining);
+        std::printf("fixed %d, recovered %d, removed %d, %s\n", r.report.fixed, r.report.recovered, r.report.removed, r.report.healthy() ? "healthy" : "NOT healthy");
+        return r.report.healthy() ? 0 : 4;
     }
 
     OpenResult r;
@@ -136,6 +216,8 @@ int main(int argc, char** argv) {
         if (!v.renameFile(arg(5), arg(6))) { std::fprintf(stderr, "mv failed\n"); return 1; }
     } else if (cmd == "rm") {
         if (!v.deleteFile(arg(5))) { std::fprintf(stderr, "rm failed\n"); return 1; }
+    } else if (cmd == "tree") {
+        walkTree(v, normalizePath(arg(5)));
     } else if (cmd == "size") {
         std::printf("%lld\n", (long long)v.getFileSize(arg(5)));
     } else if (cmd == "du") {

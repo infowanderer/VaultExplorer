@@ -2352,6 +2352,12 @@ class AppLocalizationsAr extends AppLocalizations {
   String get gocryptfsCipherLabel => 'شيفرة المحتوى';
 
   @override
+  String get gocryptfsNamesRandomIvOption => 'عشوائي لكل مجلد (افتراضي)';
+
+  @override
+  String get gocryptfsNamesDeterministicOption => 'حتمي (للمجلدات المتزامنة)';
+
+  @override
   String get cryfsCipherLabel => 'شيفرة المحتوى';
 
   @override
@@ -2520,6 +2526,156 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get keepCurrentOption => 'الاحتفاظ بالحالي';
+
+  @override
+  String get toolExpandVolumeTitle => 'توسيع وحدة تخزين VeraCrypt';
+
+  @override
+  String get toolExpandVolumeSubtitle =>
+      'تكبير حجم وحدة تخزين قياسية، مثل أداة توسيع وحدات التخزين على سطح المكتب';
+
+  @override
+  String get toolExpandLuksVolumeTitle => 'توسيع حاوية LUKS';
+
+  @override
+  String get toolExpandLuksVolumeSubtitle =>
+      'توسيع حاويات LUKS1 وLUKS2، بما في ذلك البيانات الوصفية ثابتة الحجم لـ LUKS2';
+
+  @override
+  String get luksToolsExpandNote =>
+      'قم بعمل نسخة احتياطية للحاوية أولاً. يدعم LUKS1 وLUKS2. يمكن توسيع أنظمة الملفات NTFS وext2/3/4 في مكانها (لا يمكن توسيع FAT وexFAT). يمكن تهيئة المساحة المضافة بأصفار مشفرة. يحل ملف المفتاح محل كلمة المرور إذا تم استخدامه.';
+
+  @override
+  String get toolExpandBitLockerVolumeTitle => 'توسيع حاوية BitLocker';
+
+  @override
+  String get toolExpandBitLockerVolumeSubtitle =>
+      'تكبير ملف وحدة BitLocker أو صورة VHD/VHDX وتوسيع نظام ملفات NTFS فيها';
+
+  @override
+  String get bitlockerToolsExpandNote =>
+      'أنشئ نسخة احتياطية من الحاوية أولًا. تعيد هذه الأداة كتابة بيانات BitLocker الوصفية ليغطي الحجم المشفّر المساحة المضافة، لذا تحقق من النتيجة على نسخة قبل الاعتماد عليها. تعمل مع وحدات BitLocker المشفّرة بالكامل من Windows 7 أو أحدث، سواء كملف وحدة خام أو داخل VHD أو VHDX ثابت أو ديناميكي. في صورة القرص أدخل الحجم الإجمالي الجديد للقرص: يُوسَّع القرص الافتراضي وآخر قسم فيه (MBR أو GPT) أيضًا، لذا يجب أن يكون قسم BitLocker هو الأخير. لا تُدعم وحدات BitLocker To Go ولا وحدات التشفير عند الكتابة (المساحة المستخدمة فقط). يمكن توسيع NTFS في مكانه (ولا يمكن توسيع FAT وexFAT). يمكن اختياريًا ملء المساحة المضافة بأصفار مشفّرة. افتح القفل بكلمة المرور أو بمفتاح الاسترداد المكوّن من 48 رقمًا.';
+
+  @override
+  String get bitlockerToolsPasswordLabel => 'كلمة المرور أو مفتاح الاسترداد';
+
+  @override
+  String get toolHiddenInExistingTitle => 'إضافة وحدة تخزين مخفية';
+
+  @override
+  String get toolHiddenInExistingSubtitle =>
+      'إنشاء وحدة تخزين مخفية داخل وحدة تخزين قياسية موجودة';
+
+  @override
+  String get vcToolsPickContainer => 'اختيار الحاوية';
+
+  @override
+  String get vcToolsNoContainer => 'لم يتم تحديد أي حاوية';
+
+  @override
+  String get vcToolsPasswordLabel => 'كلمة مرور وحدة التخزين';
+
+  @override
+  String get vcToolsPimLabel => 'PIM (اختياري)';
+
+  @override
+  String get vcToolsNewSizeLabel => 'حجم الحاوية الجديد (ميغابايت)';
+
+  @override
+  String get vcToolsInitFreeSpace => 'تهيئة المساحة الجديدة';
+
+  @override
+  String get vcToolsInitFreeSpaceHint =>
+      'ملء المساحة المضافة ببيانات مشفرة بمفتاح وحدة التخزين حتى لا يمكن تمييزها عن البقية. أوقف التفعيل للتوسيع السريع.';
+
+  @override
+  String get vcToolsExpandAction => 'توسيع وحدة التخزين';
+
+  @override
+  String get vcToolsExpandNote =>
+      'يتم تكبير الحاوية أولًا. بعد ذلك يُوسَّع نظام الملفات بداخلها ليشمل المساحة المضافة متى أمكن ذلك دون إعادة تهيئة (NTFS وext2/3/4). لا يمكن توسيع FAT وexFAT في مكانهما، وتبقى المساحة المضافة غير مخصصة. أنشئ نسخة احتياطية من وحدة التخزين أولًا.';
+
+  @override
+  String get vcToolsExpandDone => 'تم توسيع وحدة التخزين';
+
+  @override
+  String get vcToolsGrowFsToggle => 'توسيع نظام الملفات أيضًا';
+
+  @override
+  String get vcToolsGrowFsToggleHint =>
+      'يتيح لوحدات NTFS وext2/3/4 استخدام المساحة المضافة فورًا دون إعادة تهيئة.';
+
+  @override
+  String get vcToolsGrowFsOnlyAction => 'توسيع نظام الملفات فقط';
+
+  @override
+  String get vcToolsFsGrown =>
+      'تم توسيع نظام الملفات: المساحة المضافة جاهزة للاستخدام.';
+
+  @override
+  String get vcToolsFsAlreadyFills => 'نظام الملفات يملأ وحدة التخزين بالفعل.';
+
+  @override
+  String get vcToolsFsUnsupported =>
+      'لا يمكن توسيع نظام الملفات هذا في مكانه (FAT وexFAT غير مدعومين). ستبقى المساحة المضافة غير مخصصة حتى تتم إعادة تهيئة وحدة التخزين؛ انسخ ملفاتها احتياطيًا أولًا.';
+
+  @override
+  String get vcToolsFsBusy =>
+      'لا تزال هناك ملفات مفتوحة في وحدة التخزين. أغلقها، ثم اقفل وحدة التخزين، وأعد المحاولة عبر «توسيع نظام الملفات فقط».';
+
+  @override
+  String get vcToolsFsNeedsCheck =>
+      'نظام الملفات مُعلَّم بأنه يحتاج إلى فحص. شغّل «الفحص والإصلاح» على وحدة التخزين ثم استخدم «توسيع نظام الملفات فقط».';
+
+  @override
+  String get vcToolsFsFailed =>
+      'تعذّر توسيع نظام الملفات. تم تكبير وحدة التخزين نفسها؛ شغّل «الفحص والإصلاح» قبل استخدامها.';
+
+  @override
+  String get vcToolsAnalyzeAction => 'التحقق من المساحة الفارغة';
+
+  @override
+  String get vcToolsMaxHidden => 'أكبر وحدة تخزين مخفية ممكنة';
+
+  @override
+  String get vcToolsNoRoom =>
+      'لا توجد مساحة لوحدة تخزين مخفية: نهاية وحدة التخزين الخارجية قيد الاستخدام.';
+
+  @override
+  String get vcToolsHiddenSizeLabel => 'حجم وحدة التخزين المخفية (ميغابايت)';
+
+  @override
+  String get vcToolsHiddenPasswordLabel => 'كلمة مرور وحدة التخزين المخفية';
+
+  @override
+  String get vcToolsHiddenConfirmLabel =>
+      'تأكيد كلمة مرور وحدة التخزين المخفية';
+
+  @override
+  String get vcToolsHiddenFsLabel => 'نظام ملفات وحدة التخزين المخفية';
+
+  @override
+  String get vcToolsQuickFormat => 'تهيئة سريعة';
+
+  @override
+  String get vcToolsCreateHiddenAction => 'إنشاء وحدة تخزين مخفية';
+
+  @override
+  String get vcToolsHiddenDone => 'تم إنشاء وحدة التخزين المخفية';
+
+  @override
+  String get vcToolsHiddenNote =>
+      'تأخذ وحدة التخزين المخفية المساحة الحرة في نهاية وحدة التخزين الخارجية. بعد ذلك، قم بتركيب وحدة التخزين الخارجية مع تمكين حماية وحدة التخزين المخفية عند الكتابة إليها، وإلا فقد يتم الكتابة فوقها.';
+
+  @override
+  String get vcToolsPasswordsDiffer => 'كلمتا المرور غير متطابقتين.';
+
+  @override
+  String get vcToolsInvalidSize => 'أدخل حجمًا صالحًا.';
+
+  @override
+  String get vcToolsCredentialsRequired =>
+      'أدخل كلمة مرور وحدة التخزين أو أضف ملف مفتاح.';
 
   @override
   String get readOnlyModeLabel => 'وضع القراءة فقط';
@@ -6900,6 +7056,13 @@ class AppLocalizationsAr extends AppLocalizations {
   String get showHiddenFilesDesc => 'عرض الملفات ذات النقطة ومجلدات النظام';
 
   @override
+  String get showNoMediaFilesLabel => 'Show Media Hidden by .nomedia';
+
+  @override
+  String get showNoMediaFilesDesc =>
+      'Include media in folders containing a .nomedia file';
+
+  @override
   String get dontAskAgain => 'عدم السؤال مرة أخرى';
 
   @override
@@ -8696,7 +8859,7 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get statusBadgeSubtitle =>
-      'عرض مؤقت عرض الشرائح أو مؤشر الصورة الثابتة';
+      'يعرض العد التنازلي لعرض الشرائح أثناء تشغيله';
 
   @override
   String get topBarActionsHeader => 'إجراءات الشريط العلوي';
@@ -14207,11 +14370,11 @@ class AppLocalizationsAr extends AppLocalizations {
   String get vaultListingDetails => 'التفاصيل';
 
   @override
-  String get vaultListingSymbolicLinksTitle => 'الروابط الرمزية';
+  String get vaultListingSymbolicLinksTitle => 'الاختصارات';
 
   @override
   String get vaultListingSymbolicLinksNote =>
-      'يشير الرابط الرمزي إلى موقع آخر. لا نفتحه ولا نتبعه هنا؛ اضغط عليه لنسخ وجهته.';
+      'اضغط على الاختصار لفتح وجهته. تبقى الأهداف النسبية داخل هذه الخزنة؛ ولا يمكن فتح الأهداف المطلقة أو المعطّلة.';
 
   @override
   String get vaultListingHiddenEntriesTitle => 'إدخالات غير معروضة';
@@ -14373,4 +14536,233 @@ class AppLocalizationsAr extends AppLocalizations {
   String galleryPlaceHintCoordinates(int km) {
     return 'لا توجد مدينة ضمن $km كم: مجمّعة حسب الإحداثيات';
   }
+
+  @override
+  String get cryptomatorBackupKeyFilesTitle =>
+      'نسخ احتياطي لملفات المفاتيح عند فتح القفل';
+
+  @override
+  String get cryptomatorBackupKeyFilesSubtitle =>
+      'يحتفظ بنسخة من masterkey.cryptomator وvault.cryptomator بجوار الملفات الأصلية، كما يفعل Cryptomator على سطح المكتب. يسري من عملية الفتح التالية. جلسات القراءة فقط لا تكتب أي شيء أبدًا.';
+
+  @override
+  String get cryptomatorUpgradeTitle => 'ترقية تنسيق الخزنة';
+
+  @override
+  String get cryptomatorUpgradeSubtitle =>
+      'تستخدم هذه الخزنة التنسيق 7 الأقدم.';
+
+  @override
+  String get cryptomatorUpgradeLockFirst => 'اقفل الخزنة لترقيتها';
+
+  @override
+  String get cryptomatorUpgradeWarning =>
+      'تؤدي الترقية إلى تحويل هذه الخزنة إلى التنسيق 8. لا يمكن التراجع عنها، ولن تتمكن إصدارات Cryptomator الأقدم من 1.6 من فتح الخزنة بعد ذلك.\n\nيُحتفظ بنسخة من ملف المفتاح الحالي باسم masterkey.cryptomator.<id>.bkup. إذا كان تطبيق آخر يزامن هذه الخزنة، فدعه ينهي المزامنة أولًا.';
+
+  @override
+  String get cryptomatorUpgradeConfirm => 'أفهم أنه لا يمكن التراجع عن هذا';
+
+  @override
+  String get cryptomatorUpgradeAction => 'ترقية';
+
+  @override
+  String get cryptomatorUpgradedMessage => 'تمت ترقية الخزنة إلى التنسيق 8';
+
+  @override
+  String get cryptomatorUpgradeUnlockedError => 'اقفل الخزنة أولًا';
+
+  @override
+  String get cryptomatorConfigMissingWarning =>
+      'الملف vault.cryptomator مفقود. إذا كان تطبيق آخر يزامن هذه الخزنة، فانتظر حتى تنتهي المزامنة ثم حاول مرة أخرى. لا تقم بالترقية.';
+
+  @override
+  String get cryptomatorUpgradeFailedMessage => 'تعذرت ترقية الخزنة';
+
+  @override
+  String get newSymbolicLinkTitle => 'رابط رمزي جديد';
+
+  @override
+  String get symbolicLinkNameHint => 'اسم الرابط';
+
+  @override
+  String get symbolicLinkTargetHint => 'يشير إلى';
+
+  @override
+  String get symbolicLinkTargetHelper =>
+      'يُخزَّن كما كُتب تمامًا. عند الفتح، تُحلّ الأهداف النسبية داخل هذه الخزنة؛ ولا يتم اتباع الأهداف المطلقة.';
+
+  @override
+  String get symbolicLinkTargetTooLong =>
+      'الهدف طويل جدًا (الحد الأقصى 32,767 بايت)';
+
+  @override
+  String get symbolicLinkTargetInvalid =>
+      'لا يمكن أن يحتوي الهدف على محرف فارغ (null)';
+
+  @override
+  String get symbolicLinkNameTaken =>
+      'يوجد ملف أو مجلد أو رابط بهذا الاسم بالفعل';
+
+  @override
+  String get deleteSymbolicLinkTitle => 'حذف الرابط الرمزي؟';
+
+  @override
+  String deleteSymbolicLinkMessage(String name) {
+    return 'حذف الرابط \"$name\"؟ يُحذف الرابط فقط، ولا يتم المساس بما يشير إليه.';
+  }
+
+  @override
+  String get symbolicLinkRenameTitle => 'إعادة تسمية الرابط الرمزي';
+
+  @override
+  String get symbolicLinkBrowseTarget => 'استعراض الخزنة';
+
+  @override
+  String get symbolicLinkSelectTargetTitle => 'اختيار وجهة الاختصار';
+
+  @override
+  String get symbolicLinkSelectThisFolder => 'اختيار هذا المجلد';
+
+  @override
+  String get symbolicLinkPickerLoadError => 'تعذر تحميل هذا المجلد';
+
+  @override
+  String get shortcutBadge => 'اختصار';
+
+  @override
+  String get emptyFolder => 'هذا المجلد فارغ';
+
+  @override
+  String get symbolicLinkTargetHelperRelative =>
+      'استخدم مسارًا نسبيًا داخل هذا الحاوي. يمكن ألا يكون الهدف موجودًا بعد؛ إعادة تسمية الرابط أو حذفه لا تغيّر الهدف.';
+
+  @override
+  String get symbolicLinkTargetOutsideVault =>
+      'يجب أن يكون الهدف مسارًا نسبيًا يبقى داخل هذا الحاوي.';
+
+  @override
+  String get symbolicLinkPickerUnresolvable =>
+      'تعذّر إنشاء هدف نسبي من هنا. اكتب الهدف يدويًا.';
+
+  @override
+  String get editMetadataAction => 'تعديل البيانات الوصفية';
+
+  @override
+  String get editTagsAction => 'تعديل الوسوم';
+
+  @override
+  String get editDateTimeAction => 'تعديل التاريخ والوقت';
+
+  @override
+  String get removeMetadataAction => 'إزالة البيانات الوصفية';
+
+  @override
+  String get metadataFormatsNote =>
+      'تُكتب الوسوم والتواريخ والإزالة داخل صور JPEG وPNG وWebP. أما الملفات الأخرى فتحصل على تاريخ تعديل جديد فقط.';
+
+  @override
+  String get metadataReadOnlyMessage => 'هذه الخزنة للقراءة فقط';
+
+  @override
+  String get tagsAddHint => 'أضف وسومًا مفصولة بفواصل';
+
+  @override
+  String get tagsNoneYet => 'لا توجد وسوم بعد';
+
+  @override
+  String get dateModeSet => 'تعيين';
+
+  @override
+  String get dateModeShift => 'إزاحة';
+
+  @override
+  String get dateModeFromModified => 'من تاريخ التعديل';
+
+  @override
+  String get dateModeFromName => 'من اسم الملف';
+
+  @override
+  String get dateShiftLater => 'لاحقًا';
+
+  @override
+  String get dateShiftEarlier => 'أبكر';
+
+  @override
+  String get dateDaysLabel => 'أيام';
+
+  @override
+  String get dateHoursLabel => 'ساعات';
+
+  @override
+  String get dateMinutesLabel => 'دقائق';
+
+  @override
+  String get dateAlsoSetModified => 'عيّن أيضًا تاريخ تعديل الملف';
+
+  @override
+  String dateFromNameMatches(int matched, int total) {
+    return '$matched من $total من أسماء الملفات تحتوي على تاريخ';
+  }
+
+  @override
+  String get stripExifLabel => 'Exif (الكاميرا، التاريخ، الموقع)';
+
+  @override
+  String get stripXmpLabel => 'XMP (الوسوم، التقييم، بيانات التحرير)';
+
+  @override
+  String get stripIptcLabel => 'IPTC / Photoshop (التعليقات، الاعتمادات)';
+
+  @override
+  String get stripCommentsLabel => 'التعليقات';
+
+  @override
+  String get stripIccLabel => 'ملف تعريف الألوان (قد يغيّر الألوان)';
+
+  @override
+  String get stripKeepOrientationLabel => 'الاحتفاظ بالاتجاه';
+
+  @override
+  String get stripKeepOrientationDesc =>
+      'بدونه قد تظهر الصور الملتقطة بشكل جانبي مُدارة';
+
+  @override
+  String get stripWarning =>
+      'يؤدي هذا إلى إعادة كتابة الملفات ولا يمكن التراجع عنه.';
+
+  @override
+  String metadataProgress(int done, int total) {
+    return 'جارٍ تحديث $done من $total';
+  }
+
+  @override
+  String metadataResultUpdated(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'تم تحديث $count ملفات',
+      one: 'تم تحديث ملف واحد',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get metadataResultUnchanged => 'لا شيء يحتاج إلى تغيير';
+
+  @override
+  String metadataResultSkipped(int count) {
+    return 'تم تخطي $count (غير مدعوم)';
+  }
+
+  @override
+  String metadataResultFailed(int count) {
+    return 'فشل $count';
+  }
+
+  @override
+  String get showNoMediaFoldersLabel => 'إظهار مجلدات .nomedia';
+
+  @override
+  String get showNoMediaFoldersDesc =>
+      'تضمين المجلدات التي تحتوي على ملف .nomedia والتي تتجاهلها تطبيقات المعرض عادةً';
 }

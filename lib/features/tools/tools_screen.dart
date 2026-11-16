@@ -15,6 +15,7 @@ import 'package:vaultexplorer/features/tools/widgets/keyfile_passphrase_generato
 import 'package:vaultexplorer/features/tools/widgets/password_interchange/password_interchange_screen.dart';
 import 'package:vaultexplorer/features/tools/widgets/single_file_crypto_sheet.dart';
 import 'package:vaultexplorer/features/tools/widgets/storage_analyzer_screen.dart';
+import 'package:vaultexplorer/features/tools/widgets/veracrypt_volume_tools_screen.dart';
 import 'package:vaultexplorer/features/tools/widgets/vault_sync_screen.dart';
 import 'package:vaultexplorer/core/theme/skin/skin_area.dart';
 import 'package:vaultexplorer/core/theme/skin/skin_area_scope.dart';
@@ -116,6 +117,10 @@ class ToolsScreen extends StatelessWidget {
             _buildCompositeContainerRow(context, cs),
             _buildContainerRepairRow(context, cs),
             _buildHeaderBackupRow(context, cs),
+            _buildExpandVolumeRow(context, cs),
+            _buildExpandLuksVolumeRow(context, cs),
+            _buildExpandBitLockerVolumeRow(context, cs),
+            _buildHiddenInExistingRow(context, cs),
           ],
         ),
         const SizedBox(height: AppSpacing.lg),
@@ -186,6 +191,10 @@ class ToolsScreen extends StatelessWidget {
                     _buildCompositeContainerRow(context, cs),
                     _buildContainerRepairRow(context, cs),
                     _buildHeaderBackupRow(context, cs),
+                    _buildExpandVolumeRow(context, cs),
+                    _buildExpandLuksVolumeRow(context, cs),
+            _buildExpandBitLockerVolumeRow(context, cs),
+                    _buildHiddenInExistingRow(context, cs),
                   ],
                 ),
               ],
@@ -354,6 +363,74 @@ class ToolsScreen extends StatelessWidget {
           builder: (_) => SkinAreaScope(area: SkinArea.tools, child: ContainerRepairSheet(
             mountedContainers: mountedContainers,
           )),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExpandVolumeRow(BuildContext context, ColorScheme cs) {
+    return _ToolRow(
+      icon: Icons.unfold_more_rounded,
+      title: context.l10n.toolExpandVolumeTitle,
+      subtitle: context.l10n.toolExpandVolumeSubtitle,
+      iconColor: cs.secondary,
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => SkinAreaScope(
+            area: SkinArea.tools,
+            child: const VeraCryptVolumeToolsScreen(tool: VeraCryptVolumeTool.expand),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExpandBitLockerVolumeRow(BuildContext context, ColorScheme cs) {
+    return _ToolRow(
+      icon: Icons.unfold_more_rounded,
+      title: context.l10n.toolExpandBitLockerVolumeTitle,
+      subtitle: context.l10n.toolExpandBitLockerVolumeSubtitle,
+      iconColor: cs.secondary,
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => SkinAreaScope(
+            area: SkinArea.tools,
+            child: const VeraCryptVolumeToolsScreen(tool: VeraCryptVolumeTool.expandBitLocker),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExpandLuksVolumeRow(BuildContext context, ColorScheme cs) {
+    return _ToolRow(
+      icon: Icons.unfold_more_rounded,
+      title: context.l10n.toolExpandLuksVolumeTitle,
+      subtitle: context.l10n.toolExpandLuksVolumeSubtitle,
+      iconColor: cs.secondary,
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => SkinAreaScope(
+            area: SkinArea.tools,
+            child: const VeraCryptVolumeToolsScreen(tool: VeraCryptVolumeTool.expandLuks),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHiddenInExistingRow(BuildContext context, ColorScheme cs) {
+    return _ToolRow(
+      icon: Icons.visibility_off_rounded,
+      title: context.l10n.toolHiddenInExistingTitle,
+      subtitle: context.l10n.toolHiddenInExistingSubtitle,
+      iconColor: cs.secondary,
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => SkinAreaScope(
+            area: SkinArea.tools,
+            child: const VeraCryptVolumeToolsScreen(tool: VeraCryptVolumeTool.addHidden),
+          ),
         ),
       ),
     );

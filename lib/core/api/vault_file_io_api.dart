@@ -216,35 +216,54 @@ class VaultFileIoApi {
     if (isDir) {
       return canListDirectory(container, path);
     }
-    if (container.isLocalStorage) {
-      return _local.entryExists(container.uri, path, isDir: false);
-    }
+    // SAF must be tested BEFORE isLocalStorage: added storage locations are
+    // volId < 0 too, and their uri is a content:// tree, not a filesystem path,
+    // so File(uri/path).exists() is always false and every file looked missing.
     if (_isSaf(container)) {
       final size = await getFileSize(container, path);
       return size >= 0;
     }
-    final size = await getFileSize(container, path);
-    if (size > 0) return true;
-    if (size < 0) return false;
-    // When size == 0, it might be an actual 0-byte file, or a legacy backend
-    // returning 0 on failure. Disambiguate by checking parent directory listing.
+    if (container.isLocalStorage) {
+      return _local.entryExists(container.uri, path, isDir: false);
+    }
+    // Vault file. Deliberately NOT a getFileSize probe: on folder vaults whose
+    // storage is mirrored from a remote/cloud provider, the native getFileSize
+    // runs ensureContentReady, i.e. it pulls the WHOLE file just to answer
+    // "does it exist", and any pull failure/timeout comes back as -1 -- which
+    // callers read as "source missing" (bookmarkTargetMissing) for files that
+    // are plainly there. Directories never hit this because they are checked
+    // through a listing. The parent listing is metadata-only and is the same
+    // data the browser showed the user, so use it for files too.
     final parentDir = p.posix.dirname(path);
     final dirToQuery = (parentDir == '.' || parentDir == '/') ? '' : parentDir;
-    final rawList = await listDirectory(container, dirToQuery);
-    if (rawList == null) return false;
     final targetName = p.posix.basename(path);
     final caseSensitive = namesAreCaseSensitive(container);
-    for (final raw in rawList) {
-      if (raw.startsWith('System:')) continue;
-      final e = RawEntry.parse(raw);
-      if (!e.isDir) {
+    List<String>? rawList;
+    try {
+      rawList = await listDirectoryForBrowser(container, dirToQuery);
+    } catch (_) {
+      rawList = null;
+    }
+    if (rawList != null) {
+      for (final raw in rawList) {
+        if (raw.startsWith('System:')) continue;
+        final RawEntry e;
+        try {
+          e = RawEntry.parse(raw);
+        } on FormatException {
+          continue;
+        }
+        if (e.isDir) continue;
         final matches = caseSensitive
             ? e.name == targetName
             : e.name.toLowerCase() == targetName.toLowerCase();
         if (matches) return true;
       }
+      return false;
     }
-    return false;
+    // The listing itself failed, so it says nothing about the file. Only now
+    // fall back to the size probe.
+    return await getFileSize(container, path) >= 0;
   }
 
   Future<int> getMediaFileSize(
@@ -741,14 +760,41 @@ class VaultFileIoApi {
     return result?.cast<String>();
   }
 
-  /// The symbolic links of one folder of a mounted Cryptomator vault. Deliberately separate from
-  /// [listDirectory]: a link is neither a file nor a folder, so nothing that walks listings (sync, export,
-  /// scanners) ever sees one. Empty for everything that is not a vault, and on any error.
+  /// Directory entries for the interactive browser. Unlike [listDirectory],
+  /// this merges supported symbolic links into the visible listing. It is not
+  /// used by scanners, sync or export code, which must keep links as separate
+  /// nodes and must not recurse through them.
+  Future<List<String>?> listDirectoryForBrowser(
+    MountedContainer container,
+    String dirPath, {
+    bool refresh = false,
+  }) async {
+    final entries = await listDirectory(container, dirPath, refresh: refresh);
+    if (entries == null || !mayHaveVaultSymbolicLinks(container)) return entries;
+    final links = await listVaultSymlinks(container, dirPath);
+    if (links.isEmpty) return entries;
+    final merged = List<String>.of(entries);
+    for (final link in links) {
+      final isDirectory = link.isDir;
+      merged.add(
+        '${isDirectory ? 'LD' : 'L'}|${isDirectory ? 0 : link.targetBytes}|${link.modifiedSecs}|${link.name}',
+      );
+    }
+    return merged;
+  }
+
+  /// The symbolic links of one folder in a supported vault/container.
+  /// Deliberately separate from [listDirectory] so generic scanners, sync and
+  /// export never mistake link targets for regular file content.
   Future<List<VaultSymlink>> listVaultSymlinks(
     MountedContainer container,
     String dirPath,
   ) async {
-    if (_isSaf(container) || container.isLocalStorage) return const [];
+    if (_isSaf(container) ||
+        container.isLocalStorage ||
+        !mayHaveVaultSymbolicLinks(container)) {
+      return const [];
+    }
     try {
       final result = await _channel.invokeMethod<List<Object?>>(
         ChannelMethods.listVaultSymlinks,
@@ -765,9 +811,35 @@ class VaultFileIoApi {
     }
   }
 
-  /// Where the link at [path] points (never resolved or followed), or null if it is not a readable link.
+  /// Creates a symbolic link at [path] pointing to [target] in a supported
+  /// vault/container. Cryptomator keeps its encrypted target representation;
+  /// native ext/NTFS targets must be relative and remain inside the container.
+  /// Unsupported filesystems, SAF and local storage return false without a
+  /// platform call. Like [createDirectory], channel failures are not swallowed.
+  Future<bool> createVaultSymlink(
+    MountedContainer container,
+    String path,
+    String target,
+  ) async {
+    if (_isSaf(container) ||
+        container.isLocalStorage ||
+        !supportsVaultSymbolicLinks(container)) {
+      return false;
+    }
+    final result = await _channel.invokeMethod<bool>(
+      ChannelMethods.createVaultSymlink,
+      {'filePath': container.uri, 'path': path, 'target': target},
+    );
+    return result ?? false;
+  }
+
+  /// Where the link at [path] points (never followed), or null if it is not a readable link.
   Future<String?> readVaultSymlink(MountedContainer container, String path) async {
-    if (_isSaf(container) || container.isLocalStorage) return null;
+    if (_isSaf(container) ||
+        container.isLocalStorage ||
+        !mayHaveVaultSymbolicLinks(container)) {
+      return null;
+    }
     try {
       return await _channel.invokeMethod<String>(
         ChannelMethods.readVaultSymlink,
@@ -777,6 +849,130 @@ class VaultFileIoApi {
       logSwallowed('readVaultSymlink', e, expected: true);
       return null;
     }
+  }
+
+  /// Same no-follow query as [readVaultSymlink], but preserves channel errors.
+  /// Atomic writes use this form so an unreadable link is never mistaken for
+  /// an ordinary file and accidentally replaced.
+  Future<String?> readVaultSymlinkStrict(
+    MountedContainer container,
+    String path,
+  ) {
+    if (_isSaf(container) ||
+        container.isLocalStorage ||
+        !mayHaveVaultSymbolicLinks(container)) {
+      return Future<String?>.value(null);
+    }
+    return _channel.invokeMethod<String>(
+      ChannelMethods.readVaultSymlink,
+      {'filePath': container.uri, 'path': path},
+    );
+  }
+
+  /// Where [path] really is: every link in it is followed, whether it sits in the middle of the path or (with
+  /// [followLast]) is its last name, so the result is a chain of ordinary folders. A relative link target is
+  /// applied from the folder the link physically lives in, so a target built from the path as the browser shows
+  /// it (which may pass through a folder link of a different depth) can point somewhere else, or past the
+  /// container root; this gives the path to build it from.
+  ///
+  /// Fails closed: null when the answer is not certain: an absolute, empty or Windows-style target, a `..` that
+  /// would leave the container, a loop or a chain over 40 hops, or a link that cannot be read. (The native
+  /// engines resolve some of those differently, e.g. Cryptomator clamps `..` at the root, so null here only
+  /// means "do not build a target from this".) Containers that cannot hold links are answered without asking
+  /// the platform anything.
+  Future<String?> resolveVaultPhysicalPath(
+    MountedContainer container,
+    String path, {
+    bool followLast = true,
+  }) async {
+    final canHaveLinks =
+        !_isSaf(container) &&
+        !container.isLocalStorage &&
+        supportsVaultSymbolicLinks(container);
+    final pending = path.split('/').where((s) => s.isNotEmpty).toList();
+    final resolved = <String>[];
+    var hops = 0;
+    while (pending.isNotEmpty) {
+      final segment = pending.removeAt(0);
+      if (segment == '.') continue;
+      if (segment == '..') {
+        if (resolved.isEmpty) return null;
+        resolved.removeLast();
+        continue;
+      }
+      final isLast = pending.every((s) => s == '.');
+      if (!canHaveLinks || (isLast && !followLast)) {
+        resolved.add(segment);
+        continue;
+      }
+      final String? target;
+      try {
+        target = await readVaultSymlinkStrict(container, [
+          ...resolved,
+          segment,
+        ].join('/'));
+      } catch (_) {
+        return null;
+      }
+      if (target == null) {
+        resolved.add(segment);
+        continue;
+      }
+      if (++hops > 40) return null;
+      if (target.isEmpty ||
+          target.startsWith('/') ||
+          target.contains('\\') ||
+          target.contains('\u0000')) {
+        return null;
+      }
+      // Relative to the link's own parent folder, which is exactly [resolved] right now.
+      pending.insertAll(0, target.split('/').where((s) => s.isNotEmpty));
+    }
+    return resolved.join('/');
+  }
+
+  /// Resolves [path] through any chain of symbolic links and returns the final
+  /// container-relative target path. Returns null when [path] is not a link,
+  /// a link is unreadable, a target is absolute/outside the container, or a
+  /// loop/overlong chain is encountered. A dangling final target is returned
+  /// after at least one link was followed, matching normal open-with-create
+  /// semantics (the caller may create that target if its parent exists).
+  Future<String?> resolveVaultSymlinkTargetPath(
+    MountedContainer container,
+    String path, {
+    String? firstTarget,
+    bool strict = false,
+  }) async {
+    var currentPath = p.posix.normalize(path);
+    final visited = <String>{};
+    var followedLink = false;
+
+    for (var hop = 0; hop < 40; hop++) {
+      if (!visited.add(currentPath)) return null;
+      final String? target;
+      if (hop == 0 && firstTarget != null) {
+        target = firstTarget;
+      } else if (strict) {
+        target = await readVaultSymlinkStrict(container, currentPath);
+      } else {
+        target = await readVaultSymlink(container, currentPath);
+      }
+      if (target == null || target.isEmpty) {
+        return followedLink ? currentPath : null;
+      }
+      followedLink = true;
+      if (p.posix.isAbsolute(target)) return null;
+      final resolved = p.posix.normalize(
+        p.posix.join(p.posix.dirname(currentPath), target),
+      );
+      if (resolved == '..' ||
+          resolved.startsWith('../') ||
+          p.posix.isAbsolute(resolved)) {
+        return null;
+      }
+      currentPath = resolved;
+    }
+    return null;
   }
 
   /// How many entries of [dirPath] exist on disk but are not listed (sync-conflict copies, names that no
@@ -1263,24 +1459,92 @@ class VaultFileIoApi {
     MountedContainer container,
     String fileName,
     Uint8List bytes,
+  ) {
+    Stream<Uint8List> chunks() async* {
+      var offset = 0;
+      do {
+        final remaining = bytes.length - offset;
+        final len = remaining > _wholeFileChunkSize
+            ? _wholeFileChunkSize
+            : remaining;
+        yield Uint8List.sublistView(bytes, offset, offset + len);
+        offset += len;
+      } while (offset < bytes.length);
+    }
+
+    return replaceFileFromChunks(container, fileName, chunks());
+  }
+
+  /// Replaces [fileName] with the bytes [chunks] yields, without ever holding
+  /// the whole file in memory.
+  ///
+  /// This commits atomically by writing a sibling temp file, deleting the old
+  /// path, then renaming the temp file into place, so a failure part-way never
+  /// leaves a half-written file under the real name. That is correct for an
+  /// ordinary file, but deleting [fileName] when it is a symlink destroys the
+  /// link itself. Resolve the link first and commit against its final target
+  /// instead, just as opening a symlink for writing does on a normal
+  /// filesystem. This applies to Cryptomator's virtual links and the native
+  /// ext/NTFS links inside LUKS/VeraCrypt containers.
+  Future<bool> replaceFileFromChunks(
+    MountedContainer container,
+    String fileName,
+    Stream<Uint8List> chunks,
   ) async {
-    final tmpPath = '$fileName.tmp';
+    var writePath = fileName;
+    if (mayHaveVaultSymbolicLinks(container)) {
+      try {
+        final firstTarget = await readVaultSymlinkStrict(container, fileName);
+        if (firstTarget != null) {
+          final resolved = await resolveVaultSymlinkTargetPath(
+            container,
+            fileName,
+            firstTarget: firstTarget,
+            strict: true,
+          );
+          // Never fall back to replacing the link when it is broken in an
+          // unsafe way (absolute target, escape, unreadable chain or loop).
+          if (resolved == null) return false;
+          writePath = resolved;
+        }
+      } catch (e) {
+        // If the no-follow probe itself failed, do not risk deleting a link
+        // that we could not identify. The caller can retry after the I/O
+        // error is resolved.
+        logSwallowed('replaceFileFromChunks.resolveSymlink', e, expected: true);
+        return false;
+      }
+    }
+
+    final tmpPath = '$writePath.tmp';
     await deleteFile(container, tmpPath);
 
     var offset = 0;
-    do {
-      final remaining = bytes.length - offset;
-      final len = remaining > _wholeFileChunkSize
-          ? _wholeFileChunkSize
-          : remaining;
-      final chunk = Uint8List.sublistView(bytes, offset, offset + len);
-      final ok = await writeFileChunk(container, tmpPath, offset, chunk);
-      if (!ok) {
-        await deleteFile(container, tmpPath);
-        return false;
+    var wroteAny = false;
+    try {
+      await for (final chunk in chunks) {
+        if (chunk.isEmpty && wroteAny) continue;
+        final ok = await writeFileChunk(container, tmpPath, offset, chunk);
+        if (!ok) {
+          await deleteFile(container, tmpPath);
+          return false;
+        }
+        wroteAny = true;
+        offset += chunk.length;
       }
-      offset += len;
-    } while (offset < bytes.length);
+      if (!wroteAny) {
+        // An empty file still has to be created.
+        final ok = await writeFileChunk(container, tmpPath, 0, Uint8List(0));
+        if (!ok) {
+          await deleteFile(container, tmpPath);
+          return false;
+        }
+      }
+    } catch (e) {
+      await deleteFile(container, tmpPath);
+      logSwallowed('replaceFileFromChunks.stream', e);
+      return false;
+    }
 
     final finished = await finishWrite(container, tmpPath);
     if (!finished) {
@@ -1288,8 +1552,8 @@ class VaultFileIoApi {
       return false;
     }
 
-    await deleteFile(container, fileName);
-    return renameFile(container, tmpPath, fileName);
+    await deleteFile(container, writePath);
+    return renameFile(container, tmpPath, writePath);
   }
 
   /// Returns capacity and available bytes for this storage. Raw local paths

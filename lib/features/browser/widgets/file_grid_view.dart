@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:vaultexplorer/core/api/vault_book_api.dart';
 import 'package:vaultexplorer/core/api/vault_file_io_api.dart';
+import 'package:vaultexplorer/core/filesystem/mounted_container_filesystem.dart';
 import 'package:vaultexplorer/core/providers/vault_engine_providers.dart';
 import 'package:vaultexplorer/core/theme/app_theme.dart';
 import 'package:vaultexplorer/core/theme/file_manager_skin_scope.dart';
@@ -23,6 +24,7 @@ import 'package:vaultexplorer/data/models/thumbnail_quality.dart';
 import 'package:vaultexplorer/data/services/thumbnail_cache_service.dart';
 import 'package:vaultexplorer/data/services/video_thumbnail_fetcher.dart';
 import 'package:vaultexplorer/features/browser/services/category_aggregate_scan.dart';
+import 'package:vaultexplorer/features/browser/gallery/gallery_group_index.dart';
 import 'package:vaultexplorer/features/browser/gallery/gallery_layout.dart';
 import 'package:vaultexplorer/features/browser/gallery/gallery_sliver.dart';
 import 'package:vaultexplorer/features/browser/mixins/sort_mixin.dart';
@@ -36,6 +38,7 @@ import 'package:vaultexplorer/features/browser/widgets/folder_thumbnail_preview.
 import 'package:vaultexplorer/features/browser/widgets/gallery_date_header.dart';
 import 'package:vaultexplorer/features/browser/widgets/grid_card_shell.dart';
 import 'package:vaultexplorer/features/browser/widgets/hold_range_select_container.dart';
+import 'package:vaultexplorer/features/browser/widgets/shortcut_target_preview.dart';
 import 'package:vaultexplorer/features/browser/widgets/thumbnail_raw_fallback.dart';
 
 class FileGridView extends StatefulWidget {
@@ -222,7 +225,7 @@ class FileGridViewState extends State<FileGridView>
   final GalleryLayoutHost _groupHost = GalleryLayoutHost(
     flow: GalleryFlow.columns,
   );
-  _GridGroups? _groups;
+  GalleryGroupIndex<RawEntry>? _groups;
   String _groupHostKey = '';
 
   // Animation controller for clearly visible column morph transition
@@ -497,13 +500,13 @@ class FileGridViewState extends State<FileGridView>
     );
   }
 
-  _GridGroups _groupsFor(List<RawEntry> items) {
+  GalleryGroupIndex<RawEntry> _groupsFor(List<RawEntry> items) {
     final cached = _groups;
     if (cached != null && identical(cached.source, items)) return cached;
-    return _groups = _GridGroups(items, (widget.groupBuilder ?? computeDateGroups)(items));
+    return _groups = GalleryGroupIndex<RawEntry>(items, (widget.groupBuilder ?? computeDateGroups)(items));
   }
 
-  void _syncGroupHost(_GridGroups groups, double aspect, double headerExtent) {
+  void _syncGroupHost(GalleryGroupIndex<RawEntry> groups, double aspect, double headerExtent) {
     final key =
         '${identityHashCode(groups)}|$_crossAxisCount|${widget.spacing}|$aspect|$headerExtent';
     if (key == _groupHostKey) return;
@@ -671,6 +674,7 @@ class FileGridViewState extends State<FileGridView>
       longFileNameMode: widget.longFileNameMode,
       isPinned: widget.isPinned?.call(entry) ?? false,
       isBookmark: widget.isBookmark?.call(entry) ?? false,
+      isShortcut: entry.isSymlink,
       isDocumentProviderMounted: isMounted,
       isSynced: widget.isFolderSynced?.call(entry) ?? false,
       isPlaceholder: entry.isPlaceholder,
@@ -714,7 +718,7 @@ class FileGridViewState extends State<FileGridView>
     String displayName = cleanName;
     final ext = cleanName.split('.').last;
     final skin = FileManagerSkinScope.of(context);
-    final vaultIcon = vaultIconForExt(ext);
+    final vaultIcon = entry.isSymlink ? null : vaultIconForExt(ext);
     if (vaultIcon != null) {
       final nameParts = cleanName.split('.');
       if (nameParts.length > 1) {
@@ -746,7 +750,89 @@ class FileGridViewState extends State<FileGridView>
       viewportWidth: _getViewportWidth(context),
     );
 
-    if (vaultIcon != null) {
+    if (entry.isSymlink &&
+        mayHaveVaultSymbolicLinks(_containerOf(entry)) &&
+        widget.archiveContext == null) {
+      final targetContainer = _containerOf(entry);
+      previewWidget = ShortcutTargetPreview(
+        container: targetContainer,
+        linkPath: fullPath,
+        fallback: Center(
+          child: Icon(
+            skin.fileIcon(cleanName),
+            size: iconSize,
+            color: skin.fileIconColor(cs, cleanName),
+          ),
+        ),
+        builder: (context, targetPath, targetName) {
+          final targetIcon = skin.fileIcon(targetName);
+          final targetColor = skin.fileIconColor(cs, targetName);
+          if (MediaViewerConstants.isImage(targetName)) {
+            return Hero(
+              tag: 'media_hero_${targetContainer.volId}_$fullPath',
+              createRectTween: (begin, end) =>
+                  MaterialRectArcTween(begin: begin, end: end),
+              child: Material(
+                type: MaterialType.transparency,
+                child: _EncryptedImageGridThumb(
+                  container: targetContainer,
+                  filePath: targetPath,
+                  cacheMode: _cacheModeOf(entry),
+                  quality: _effectiveQualityOf(entry),
+                ),
+              ),
+            );
+          }
+          if (MediaViewerConstants.isVideo(targetName)) {
+            return Hero(
+              tag: 'media_hero_${targetContainer.volId}_$fullPath',
+              createRectTween: (begin, end) =>
+                  MaterialRectArcTween(begin: begin, end: end),
+              child: Material(
+                type: MaterialType.transparency,
+                child: _VideoThumb(
+                  container: targetContainer,
+                  filePath: targetPath,
+                  cacheMode: _cacheModeOf(entry),
+                  quality: _effectiveQualityOf(entry),
+                ),
+              ),
+            );
+          }
+          if (isApkFile(targetName)) {
+            return Center(
+              child: SizedBox(
+                width: iconSize,
+                height: iconSize,
+                child: _ApkIconGridThumb(
+                  container: targetContainer,
+                  filePath: targetPath,
+                  cacheMode: _cacheModeOf(entry),
+                  quality: _effectiveQualityOf(entry),
+                  fallbackIcon: targetIcon,
+                  fallbackColor: targetColor,
+                  fallbackIconSize: iconSize,
+                ),
+              ),
+            );
+          }
+          if (isBookWithCover(targetName)) {
+            return _BookCoverGridThumb(
+              container: targetContainer,
+              filePath: targetPath,
+              cacheMode: _cacheModeOf(entry),
+              quality: _effectiveQualityOf(entry),
+              fallbackIcon: targetIcon,
+              fallbackColor: targetColor,
+              fallbackIconSize: iconSize,
+            );
+          }
+          return Center(
+            child: Icon(targetIcon, size: iconSize, color: targetColor),
+          );
+        },
+      );
+    } else if (vaultIcon != null) {
       previewWidget = Center(
         child: Icon(
           skin.fileIcon(cleanName),
@@ -835,6 +921,7 @@ class FileGridViewState extends State<FileGridView>
       longFileNameMode: widget.longFileNameMode,
       isPinned: widget.isPinned?.call(entry) ?? false,
       isBookmark: widget.isBookmark?.call(entry) ?? false,
+      isShortcut: entry.isSymlink,
       isPlaceholder: entry.isPlaceholder,
       onTap: entry.isPlaceholder ? () {} : () => widget.onFileTap(entry),
       // Selection is owned by HoldRangeSelectContainer's hold recognizer
@@ -1247,33 +1334,3 @@ class _BookCoverGridThumb extends ConsumerWidget {
   );
 }
 
-/// The date groups of a list, plus the map from a child index of the grouped
-/// sliver (a header per group, then its items) back to a group and an item.
-class _GridGroups {
-  _GridGroups(this.source, this.groups)
-    : childCount = source.length + groups.length,
-      childGroup = Int32List(source.length + groups.length),
-      childLocal = Int32List(source.length + groups.length) {
-    var c = 0;
-    for (var g = 0; g < groups.length; g++) {
-      childGroup[c] = g;
-      childLocal[c] = -1;
-      c++;
-      for (var j = 0; j < groups[g].items.length; j++) {
-        childGroup[c] = g;
-        childLocal[c] = j;
-        c++;
-      }
-    }
-  }
-
-  final List<RawEntry> source;
-  final List<DateGroup<RawEntry>> groups;
-  final int childCount;
-
-  /// Child index -> group.
-  final Int32List childGroup;
-
-  /// Child index -> index inside the group, or -1 for the group's header.
-  final Int32List childLocal;
-}

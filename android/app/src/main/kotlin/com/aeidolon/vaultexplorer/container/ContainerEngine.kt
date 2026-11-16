@@ -85,9 +85,10 @@ object ContainerEngine {
         keyfileFds: IntArray? = null, quickFormat: Boolean = false,
         deviceSectorCount: Long = 0L, operationId: String = "",
         userEntropy: ByteArray? = null,
+        deviceSectorSize: Int = 512,
     ): Map<String, Any?>? = NativeEngine.createUsbContainerNative(
         volId, partitionScheme, password, pim, sizeBytes, fileSystem, containerFormat, cipherId, hashId,
-        keyfileFds, quickFormat, deviceSectorCount, operationId, userEntropy,
+        keyfileFds, quickFormat, deviceSectorCount, operationId, userEntropy, deviceSectorSize,
     )
 
     fun createWithHidden(
@@ -120,11 +121,12 @@ object ContainerEngine {
         quickFormat: Boolean = false,
         deviceSectorCount: Long = 0L, operationId: String = "",
         userEntropy: ByteArray? = null,
+        deviceSectorSize: Int = 512,
     ): Map<String, Any?>? = NativeEngine.createUsbContainerWithHiddenNative(
         volId, partitionScheme, outerPassword, hiddenPassword, outerPim, hiddenPim, sizeBytes,
         outerFileSystem, hiddenFileSystem, hiddenSizeBytes, outerCipherId, outerHashId,
         hiddenCipherId, hiddenHashId, outerKeyfileFds, hiddenKeyfileFds, quickFormat,
-        deviceSectorCount, operationId, userEntropy,
+        deviceSectorCount, operationId, userEntropy, deviceSectorSize,
     )
 
     fun changePassword(
@@ -180,12 +182,29 @@ object ContainerEngine {
         VaultBackendRegistry.get(volId)?.invalidateCache(path)
     }
 
-    // Symlinks and hidden entries exist only on folder-vault backends; everything else reports "none" / unknown.
-    fun listSymlinks(path: String, volId: Int): Array<String> =
-        VaultBackendRegistry.get(volId)?.listSymlinks(path) ?: emptyArray()
+    // Folder-vault backends handle their own encrypted link representation.
+    // Native links are intentionally exposed only for LUKS/VeraCrypt volumes;
+    // fs_ops then enables them only on ext and NTFS (not FAT/exFAT).
+    fun listSymlinks(path: String, volId: Int): Array<String> {
+        VaultBackendRegistry.get(volId)?.let { return it.listSymlinks(path) ?: emptyArray() }
+        val format = format(volId)
+        if (!format.isLuks && !format.isVeraCrypt) return emptyArray()
+        return NativeEngine.listSymlinks(path, volId) ?: emptyArray()
+    }
 
-    fun readSymlink(path: String, volId: Int): String? =
-        VaultBackendRegistry.get(volId)?.readSymlink(path)
+    fun createSymlink(path: String, target: String, volId: Int): Boolean {
+        VaultBackendRegistry.get(volId)?.let { return it.createSymlink(path, target) }
+        val format = format(volId)
+        if (!format.isLuks && !format.isVeraCrypt) return false
+        return NativeEngine.createSymlink(path, target, volId)
+    }
+
+    fun readSymlink(path: String, volId: Int): String? {
+        VaultBackendRegistry.get(volId)?.let { return it.readSymlink(path) }
+        val format = format(volId)
+        if (!format.isLuks && !format.isVeraCrypt) return null
+        return NativeEngine.readSymlink(path, volId)
+    }
 
     fun hiddenEntryCount(path: String, volId: Int): Int =
         VaultBackendRegistry.get(volId)?.hiddenEntryCount(path) ?: -1
@@ -321,6 +340,8 @@ object ContainerEngine {
 
 enum class ContainerFormat {
     VERACRYPT, LUKS1, LUKS2, CRYPTOMATOR, GOCRYPTFS, CRYFS, BITLOCKER, PLAIN, UNKNOWN;
+    val isLuks: Boolean get() = this == LUKS1 || this == LUKS2
+    val isVeraCrypt: Boolean get() = this == VERACRYPT
     val wireName: String get() = when (this) {
         VERACRYPT -> "veracrypt"; LUKS1 -> "luks1"; LUKS2 -> "luks2"
         CRYPTOMATOR -> "cryptomator"; GOCRYPTFS -> "gocryptfs"; CRYFS -> "cryfs"

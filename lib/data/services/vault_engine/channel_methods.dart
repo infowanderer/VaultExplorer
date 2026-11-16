@@ -47,6 +47,10 @@ abstract final class ChannelMethods {
   static const changeCryptomatorVaultPassword =
       'changeCryptomatorVaultPassword';
   static const migrateCryptomatorVault = 'migrateCryptomatorVault';
+  static const probeCryptomatorVault = 'probeCryptomatorVault';
+  static const getCryptomatorKeyFileBackup = 'getCryptomatorKeyFileBackup';
+  static const setCryptomatorKeyFileBackup = 'setCryptomatorKeyFileBackup';
+  static const clearVaultOpenPreferences = 'clearVaultOpenPreferences';
   static const pickGocryptfsVault = 'pickGocryptfsVault';
   static const unlockGocryptfsVault = 'unlockGocryptfsVault';
   static const createGocryptfsVault = 'createGocryptfsVault';
@@ -116,6 +120,7 @@ abstract final class ChannelMethods {
   static const listDirectory = 'listDirectory';
   static const listVaultSymlinks = 'listVaultSymlinks';
   static const readVaultSymlink = 'readVaultSymlink';
+  static const createVaultSymlink = 'createVaultSymlink';
   static const getHiddenEntryCount = 'getHiddenEntryCount';
   static const createDirectory = 'createDirectory';
   static const renameFile = 'renameFile';
@@ -240,6 +245,14 @@ abstract final class ChannelMethods {
   // Header Backup tool.
   static const exportContainerHeader = 'exportContainerHeader';
   static const restoreContainerHeaderRegion = 'restoreContainerHeaderRegion';
+  static const expandVeraCryptContainer = 'expandVeraCryptContainer';
+  static const expandLuksContainer = 'expandLuksContainer';
+  static const growVeraCryptFileSystem = 'growVeraCryptFileSystem';
+  static const growLuksFileSystem = 'growLuksFileSystem';
+  static const expandBitLockerContainer = 'expandBitLockerContainer';
+  static const growBitLockerFileSystem = 'growBitLockerFileSystem';
+  static const analyzeHiddenVolumeHost = 'analyzeHiddenVolumeHost';
+  static const createHiddenVolumeInExisting = 'createHiddenVolumeInExisting';
   static const resolveFolderVaultConfigFile = 'resolveFolderVaultConfigFile';
   static const restoreFolderVaultConfig = 'restoreFolderVaultConfig';
 

@@ -14,7 +14,15 @@
 #include "diskio.h"
 #include "volume_state.h"
 #include "filesystems/stream_handles.h"
-namespace { constexpr size_t kIoBufferSize = 2097152; }
+// resize2fs engine (e2fsprogs resize/resize2fs.c, built into libext2fs -- see CMakeLists.txt). The progress
+// callback type is spelled with void* because ext2_resize_t is an opaque pointer here; we always pass null.
+extern "C" errcode_t resize_fs(ext2_filsys fs, blk64_t* new_size, int flags,
+                               errcode_t (*progress)(void* rfs, int pass, unsigned long cur, unsigned long max_val));
+namespace {
+constexpr size_t kIoBufferSize = 2097152;
+bool extIsDirectory(ext2_filsys fs, ext2_ino_t ino);
+bool extEntryExists(ext2_filsys fs, ext2_ino_t dir, const std::string& name);
+}
 #define EXT_LOGI(...) __android_log_print(ANDROID_LOG_INFO, "VaultExplorer_C++", __VA_ARGS__)
 #define EXT_LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "VaultExplorer_C++", __VA_ARGS__)
 bool extResolvePath(ext2_filsys fs, const std::string& path, ext2_ino_t* inode) {
@@ -23,6 +31,57 @@ bool extResolvePath(ext2_filsys fs, const std::string& path, ext2_ino_t* inode) 
     if (relative.empty()) { *inode = EXT2_ROOT_INO; return true; }
     return ext2fs_namei_follow(fs, EXT2_ROOT_INO, EXT2_ROOT_INO, relative.c_str(), inode) == 0;
 }
+
+// Resolve the parent normally but look up the final component without following
+// it. Rename/delete must act on the link inode itself, not on its target.
+static bool extResolvePathNoFollowFinal(ext2_filsys fs, const std::string& path,
+                                        ext2_ino_t* inode) {
+    std::string relative = path;
+    while (!relative.empty() && relative.front() == '/') relative.erase(relative.begin());
+    if (relative.empty()) { *inode = EXT2_ROOT_INO; return true; }
+    const size_t slash = relative.find_last_of('/');
+    const std::string parentPath = slash == std::string::npos ? "" : relative.substr(0, slash);
+    const std::string name = slash == std::string::npos ? relative : relative.substr(slash + 1);
+    ext2_ino_t parent = 0;
+    if (name.empty() || !extResolvePath(fs, parentPath, &parent)) return false;
+    return ext2fs_lookup(fs, parent, name.c_str(), static_cast<int>(name.size()),
+                         nullptr, inode) == 0;
+}
+
+// Number of directories between [dir] and the filesystem root, found by walking ".." entries: the PHYSICAL depth.
+// The depth of a path as written is not enough: "a/b" is shallower than it reads when "a" is a symlink, and a
+// target's ".." steps are applied from the directory the link really lives in, not from the path it was reached by.
+static bool extDirectoryDepth(ext2_filsys fs, ext2_ino_t dir, size_t* depth) {
+    size_t d = 0;
+    for (int guard = 0; dir != EXT2_ROOT_INO; ++guard) {
+        if (guard > 4096) return false;   // a damaged tree (a ".." loop)
+        ext2_ino_t up = 0;
+        if (ext2fs_lookup(fs, dir, "..", 2, nullptr, &up) != 0 || up == 0 || up == dir) return false;
+        dir = up;
+        ++d;
+    }
+    *depth = d;
+    return true;
+}
+
+// A relative target must never climb above the filesystem root. [parentDepth] is the physical depth of the
+// directory the link will be created in (see extDirectoryDepth).
+static bool extTargetStaysInside(size_t parentDepth, const std::string& target) {
+    if (target.empty() || target.front() == '/' || target.find('\0') != std::string::npos) return false;
+    size_t depth = parentDepth;
+    size_t start = 0;
+    while (start < target.size()) {
+        while (start < target.size() && target[start] == '/') ++start;
+        if (start >= target.size()) break;
+        size_t end = target.find('/', start);
+        if (end == std::string::npos) end = target.size();
+        const std::string part = target.substr(start, end - start);
+        if (part == "..") { if (depth == 0) return false; --depth; }
+        else if (!part.empty() && part != ".") ++depth;
+        start = end;
+    }
+    return true;
+}
 int extDirectoryEntry(ext2_ino_t, int, struct ext2_dir_entry* entry, int, int, char*, void* data) {
     auto* context = static_cast<ExtDirContext*>(data);
     if (!entry->inode || context->results->size() >= EXT_DIRECTORY_MAX_ENTRIES) return 0;
@@ -30,6 +89,10 @@ int extDirectoryEntry(ext2_ino_t, int, struct ext2_dir_entry* entry, int, int, c
     if (name == "." || name == "..") return 0;
     struct ext2_inode inode{};
     if (ext2fs_read_inode(context->fs, entry->inode, &inode) != 0) return 0;
+    // Symlinks are fetched through fsListSymlinks(), not the ordinary file
+    // listing; otherwise generic scanners could treat their target bytes as
+    // regular file content.
+    if (LINUX_S_ISLNK(inode.i_mode)) return 0;
     const bool isDir = LINUX_S_ISDIR(inode.i_mode);
     const uint64_t size = (static_cast<uint64_t>(inode.i_size_high) << 32) | inode.i_size;
     context->results->push_back(encodeDirEntryWire(name, isDir, size, inode.i_mtime));
@@ -261,6 +324,9 @@ errcode_t extIoOpen(const char* name, int, io_channel* out) {
 }
 errcode_t extIoClose(io_channel channel) {
     if (!channel) return EXT2_ET_INVALID_ARGUMENT;
+    // ext2fs_dup_handle() (used by resize_fs) shares one channel between two filesystem handles
+    // by bumping refcount; every manager must only release it when the last holder closes.
+    if (--channel->refcount > 0) return 0;
     delete static_cast<int*>(channel->private_data);
     std::free(channel->name);
     std::free(channel);
@@ -321,11 +387,67 @@ errcode_t extIoOpenBound(const char* name, int flags, io_channel* out) {
     return result;
 }
 }
+namespace {
+// Wipes everything formatExtVolume() relies on being clean: block 0 (boot area, stale
+// signatures) and every inode table.
+//
+// libext2fs only *reserves* these blocks (ext2fs_allocate_tables); writing them is the
+// caller's job, which mke2fs does. The payload underneath is never trustworthy: a
+// container that was not quick-formatted decrypts to noise, and a re-formatted volume still
+// holds the previous filesystem. Stale inode tables are harmful rather than cosmetic: inode 8
+// (the journal) with a leftover nonzero i_blocks makes ext2fs_add_journal_inode3() fail
+// with EEXIST, and a filesystem that claims a journal it does not have is rejected by the
+// kernel.
+errcode_t zeroFormatTargets(ext2_filsys fs) {
+    errcode_t err = ext2fs_zero_blocks2(fs, 0, 1, nullptr, nullptr);
+    if (err) return err;
+    for (dgrp_t group = 0; group < fs->group_desc_count; ++group) {
+        const blk64_t table = ext2fs_inode_table_loc(fs, group);
+        if (table == 0) return EXT2_ET_MISSING_INODE_TABLE;
+        err = ext2fs_zero_blocks2(fs, table, static_cast<int>(fs->inode_blocks_per_group),
+                                  nullptr, nullptr);
+        if (err) return err;
+    }
+    return 0;
+}
+
+// What the root directory looks like to every user of the volume: world-accessible, since
+// the container itself is the access boundary.
+errcode_t openUpRootDirectory(ext2_filsys fs) {
+    ext2_inode root{};
+    errcode_t err = ext2fs_read_inode(fs, EXT2_ROOT_INO, &root);
+    if (err) return err;
+    root.i_mode = LINUX_S_IFDIR | 0777;
+    root.i_uid = root.i_gid = 0;
+    root.i_links_count = 2;
+    root.i_atime = root.i_mtime = root.i_ctime = static_cast<uint32_t>(time(nullptr));
+    return ext2fs_write_inode(fs, EXT2_ROOT_INO, &root);
+}
+
+errcode_t addJournal(ext2_filsys fs, uint64_t totalBlocks) {
+    ext2fs_journal_params journal{};
+    journal.num_journal_blocks = static_cast<blk_t>(std::min<uint64_t>(8192, totalBlocks / 32));
+    if (journal.num_journal_blocks < 1024) journal.num_journal_blocks = 1024;
+    // The device name libext2fs sees is a synthetic volume id ("0", "1", ...), not a host
+    // block device, so the mount-table probe is meaningless here (and can fail outright
+    // where /proc/mounts is unreadable). VaultExplorer owns the volume exclusively.
+    errcode_t err = ext2fs_add_journal_inode3(fs, &journal, 0, EXT2_MKJOURNAL_NO_MNT_CHECK);
+    if (err) return err;
+    // libext2fs sets HAS_JOURNAL itself once the journal inode is real; trust but verify.
+    if (!EXT2_HAS_COMPAT_FEATURE(fs->super, EXT3_FEATURE_COMPAT_HAS_JOURNAL) ||
+        fs->super->s_journal_inum != EXT2_JOURNAL_INO || fs->super->s_journal_dev != 0)
+        return EXT2_ET_BAD_INODE_NUM;
+    return 0;
+}
+}  // namespace
+
 bool formatExtVolume(int volumeId, const char* variant) {
+    if (volumeId < 0 || volumeId >= FF_VOLUMES || !variant) return false;
     const bool ext3 = strncasecmp(variant, "ext3", 4) == 0;
     const bool ext4 = strncasecmp(variant, "ext4", 4) == 0;
     const uint64_t totalBlocks = volumes[volumeId].dataAreaLengthBytes / 4096;
     if (totalBlocks < 1024) return false;
+
     ext2_super_block params{};
     params.s_rev_level = EXT2_DYNAMIC_REV;
     params.s_inode_size = 256;
@@ -334,26 +456,41 @@ bool formatExtVolume(int volumeId, const char* variant) {
     params.s_blocks_per_group = 32768;
     params.s_inodes_per_group = 2048;
     ext2fs_blocks_count_set(&params, totalBlocks);
-    // A journal is only actually written below when this holds -- the
-    // HAS_JOURNAL compat bit must track that exact condition, or every
-    // reader (blkid, the kernel, extGetFilesystemLabel() below) will see
-    // a plain ext2 volume regardless of what was requested.
-    const bool willHaveJournal = (ext3 || ext4) && totalBlocks > 2048;
-    params.s_feature_incompat = 0x0002;
-    params.s_feature_ro_compat = 0x0001;
-    params.s_feature_compat = 0x0020;
-    if (willHaveJournal) params.s_feature_compat |= 0x0004;  // EXT3_FEATURE_COMPAT_HAS_JOURNAL
-    if (ext4) params.s_feature_incompat |= 0x0040;
+    // HAS_JOURNAL is deliberately NOT requested here: libext2fs sets it when (and only
+    // when) the journal inode has been created. Declaring it up front is what let a failed
+    // journal leave a filesystem that advertised a journal it did not have.
+    params.s_feature_incompat = 0x0002;  // FILETYPE
+    params.s_feature_ro_compat = 0x0001; // SPARSE_SUPER
+    params.s_feature_compat = 0x0020;    // DIR_INDEX
+    if (ext4) params.s_feature_incompat |= 0x0040;  // EXTENTS
+    // Too small for a useful journal: ext3 then reads as ext2, ext4 stays journal-less.
+    const bool wantJournal = (ext3 || ext4) && totalBlocks > 2048;
+
     char deviceName[16];
     std::snprintf(deviceName, sizeof(deviceName), "%d", volumeId);
     ext2_filsys fs = nullptr;
-    if (ext2fs_initialize(deviceName, 0, &params, &encryptedExtIoManager, &fs) != 0) return false;
+    const errcode_t initError = ext2fs_initialize(deviceName, 0, &params, &encryptedExtIoManager, &fs);
+    if (initError != 0) {
+        EXT_LOGE("formatExtVolume: ext2fs_initialize failed: %s (err=%lu)",
+                 error_message(initError), static_cast<unsigned long>(initError));
+        return false;
+    }
+    // Every failure below discards the half-built filesystem (ext2fs_free) rather than
+    // closing it: closing would flush a superblock for a filesystem that is not finished.
+    auto giveUp = [&fs](const char* step, errcode_t err) {
+        EXT_LOGE("formatExtVolume: %s failed: %s (err=%lu)", step, error_message(err),
+                 static_cast<unsigned long>(err));
+        ext2fs_free(fs);
+        return false;
+    };
+
     fs->flags |= EXT2_FLAG_RW;
+    const uint32_t now = static_cast<uint32_t>(time(nullptr));
     fs->super->s_state = 1;
     fs->super->s_max_mnt_count = 20;
-    fs->super->s_lastcheck = static_cast<uint32_t>(time(nullptr));
-    fs->super->s_mtime = static_cast<uint32_t>(time(nullptr));
-    fs->super->s_wtime = static_cast<uint32_t>(time(nullptr));
+    fs->super->s_lastcheck = now;
+    fs->super->s_mtime = now;
+    fs->super->s_wtime = now;
     unsigned char uuid[16];
     if (FILE* random = fopen("/dev/urandom", "rb")) {
         fread(uuid, 1, sizeof(uuid), random);
@@ -364,24 +501,16 @@ bool formatExtVolume(int volumeId, const char* variant) {
     }
     std::strncpy(reinterpret_cast<char*>(fs->super->s_last_mounted), "/", sizeof(fs->super->s_last_mounted));
     fs->super->s_r_blocks_count = 0;
-    if (ext2fs_allocate_tables(fs) != 0) { ext2fs_close(fs); return false; }
-    ext2fs_write_inode_bitmap(fs);
-    ext2fs_write_block_bitmap(fs);
-    ext2fs_mkdir(fs, EXT2_ROOT_INO, EXT2_ROOT_INO, nullptr);
-    ext2_inode root{};
-    if (ext2fs_read_inode(fs, EXT2_ROOT_INO, &root) == 0) {
-        root.i_mode = LINUX_S_IFDIR | 0777;
-        root.i_uid = root.i_gid = 0;
-        root.i_links_count = 2;
-        root.i_atime = root.i_mtime = root.i_ctime = static_cast<uint32_t>(time(nullptr));
-        ext2fs_write_inode(fs, EXT2_ROOT_INO, &root);
-    }
-    ext2fs_mkdir(fs, EXT2_ROOT_INO, 0, "lost+found");
-    if (willHaveJournal) {
-        ext2fs_journal_params journal{};
-        journal.num_journal_blocks = static_cast<blk_t>(std::min<uint64_t>(8192, totalBlocks / 32));
-        if (journal.num_journal_blocks < 1024) journal.num_journal_blocks = 1024;
-        ext2fs_add_journal_inode3(fs, &journal, 0, 0);
+
+    if (errcode_t err = ext2fs_allocate_tables(fs)) return giveUp("allocating tables", err);
+    if (errcode_t err = zeroFormatTargets(fs)) return giveUp("zeroing block 0 and inode tables", err);
+    if (errcode_t err = ext2fs_mkdir(fs, EXT2_ROOT_INO, EXT2_ROOT_INO, nullptr))
+        return giveUp("creating the root directory", err);
+    if (errcode_t err = openUpRootDirectory(fs)) return giveUp("setting root directory mode", err);
+    if (errcode_t err = ext2fs_mkdir(fs, EXT2_ROOT_INO, 0, "lost+found"))
+        return giveUp("creating lost+found", err);
+    if (wantJournal) {
+        if (errcode_t err = addJournal(fs, totalBlocks)) return giveUp("creating the journal", err);
     }
     for (ext2_ino_t inode = EXT2_BAD_INO; inode < fs->super->s_first_ino; ++inode) {
         if (!ext2fs_test_inode_bitmap2(fs->inode_map, inode))
@@ -390,8 +519,12 @@ bool formatExtVolume(int volumeId, const char* variant) {
     ext2fs_mark_ib_dirty(fs);
     ext2fs_mark_bb_dirty(fs);
     ext2fs_mark_super_dirty(fs);
-    ext2fs_flush(fs);
-    ext2fs_close(fs);
+    if (errcode_t err = ext2fs_flush(fs)) return giveUp("writing filesystem metadata", err);
+    if (errcode_t err = ext2fs_close(fs)) {
+        EXT_LOGE("formatExtVolume: closing the filesystem failed: %s (err=%lu)",
+                 error_message(err), static_cast<unsigned long>(err));
+        return false;
+    }
     return true;
 }
 bool ensureExtBitmapsLoaded(int volumeId) {
@@ -433,6 +566,47 @@ bool mountExtVolume(int volumeId) {
              static_cast<unsigned long long>(ext2fs_free_blocks_count(superblock)),
              hasJournal ? 1 : 0, needsRecovery ? 1 : 0);
     return true;
+}
+FsGrowStatus extGrowToFit(int volumeId) {
+    if (volumeId < 0 || volumeId >= FF_VOLUMES) return FsGrowStatus::kFailed;
+    VolumeState& volume = volumes[volumeId];
+    ext2_filsys fs = volume.extFs;
+    if (!fs || !fs->super || volume.readOnly) return FsGrowStatus::kFailed;
+    if (!volume.openExtStreams.empty()) return FsGrowStatus::kBusy;
+    ext2_super_block* sb = fs->super;
+    const blk64_t current = ext2fs_blocks_count(sb);
+    blk64_t target = volume.dataAreaLengthBytes / fs->blocksize;
+    if (!ext2fs_has_feature_64bit(sb) && target > 0xFFFFFFFFull) target = 0xFFFFFFFFull;
+    if (target <= current) return FsGrowStatus::kAlreadyFills;
+    // The same preconditions resize2fs's main() enforces before touching anything.
+    if (ext2fs_has_feature_journal_dev(sb)) return FsGrowStatus::kUnsupported;
+    if ((sb->s_state & EXT2_ERROR_FS) || !(sb->s_state & EXT2_VALID_FS) ||
+        EXT2_HAS_INCOMPAT_FEATURE(sb, EXT3_FEATURE_INCOMPAT_RECOVER)) {
+        return FsGrowStatus::kNeedsCheck;
+    }
+    // New inode tables are zeroed up front: resize2fs otherwise defers that to the kernel when
+    // /sys/fs/ext4/features/lazy_itable_init exists, which would leave garbage after a quick expand.
+    setenv("RESIZE2FS_FORCE_ITABLE_INIT", "1", 1);
+    unsetenv("RESIZE2FS_FORCE_LAZY_ITABLE_INIT");
+    fs->default_bitmap_type = EXT2FS_BMAP64_RBTREE;
+    EXT_LOGI("extGrowToFit: volume %d growing %llu -> %llu blocks", volumeId,
+             static_cast<unsigned long long>(current), static_cast<unsigned long long>(target));
+    blk64_t newSize = target;
+    const errcode_t err = resize_fs(fs, &newSize, 0, nullptr);
+    if (err != 0) {
+        // resize_fs frees only its own state on failure; fs stays valid but is flagged in error
+        // on disk, which Check & Repair reports. Drop the dangling resize state pointer.
+        fs->priv_data = nullptr;
+        EXT_LOGE("extGrowToFit: resize_fs failed on volume %d: %s (err=%lu)", volumeId,
+                 error_message(err), static_cast<unsigned long>(err));
+        return FsGrowStatus::kFailed;
+    }
+    // resize_fs closed the new handle and freed the old one: the mount must be redone.
+    volume.extFs = nullptr;
+    volume.extBitmapsLoaded = false;
+    volume.fsMounted = false;
+    volume.fsType = VolumeState::FS_UNKNOWN;
+    return mountExtVolume(volumeId) ? FsGrowStatus::kGrown : FsGrowStatus::kFailed;
 }
 std::string extGetFilesystemLabel(int volumeId) {
     if (volumeId < 0 || volumeId >= FF_VOLUMES) return std::string();
@@ -784,6 +958,98 @@ void extListDirectory(int volumeId, const std::string& pathSuffix, std::vector<s
         if (results.size() >= EXT_DIRECTORY_MAX_ENTRIES) results.push_back("System:TRUNCATED");
     }
 }
+
+namespace {
+struct ExtSymlinkListContext {
+    ext2_filsys fs;
+    std::string parentPath;
+    std::vector<std::string>* results;
+};
+int extSymlinkListEntry(ext2_ino_t, int, struct ext2_dir_entry* entry, int, int, char*, void* data) {
+    auto* context = static_cast<ExtSymlinkListContext*>(data);
+    if (!entry->inode || context->results->size() >= EXT_DIRECTORY_MAX_ENTRIES) return 0;
+    const std::string name(entry->name, ext2fs_dirent_name_len(entry));
+    if (name == "." || name == "..") return 0;
+    struct ext2_inode inode{};
+    if (ext2fs_read_inode(context->fs, entry->inode, &inode) != 0 ||
+        !LINUX_S_ISLNK(inode.i_mode)) return 0;
+    const uint64_t size = (static_cast<uint64_t>(inode.i_size_high) << 32) | inode.i_size;
+    const std::string linkPath = context->parentPath.empty()
+        ? name : context->parentPath + "/" + name;
+    ext2_ino_t targetInode = 0;
+    const bool targetIsDirectory = extResolvePath(context->fs, linkPath, &targetInode) &&
+                                   extIsDirectory(context->fs, targetInode);
+    context->results->push_back(
+        encodeSymlinkEntryWire(name, size, inode.i_mtime, targetIsDirectory));
+    return 0;
+}
+}
+
+void extListSymlinks(int volumeId, const std::string& pathSuffix, std::vector<std::string>& results) {
+    if (volumeId < 0 || volumeId >= FF_VOLUMES) return;
+    auto& v = volumes[volumeId];
+    ext2_ino_t dirInode = 0;
+    if (!v.extFs || !extResolvePath(v.extFs, pathSuffix, &dirInode)) return;
+    ExtSymlinkListContext context{v.extFs, pathSuffix, &results};
+    ext2fs_dir_iterate2(v.extFs, dirInode, 0, nullptr, extSymlinkListEntry, &context);
+    if (results.size() >= EXT_DIRECTORY_MAX_ENTRIES) results.push_back("System:TRUNCATED");
+}
+
+bool extReadSymlink(int volumeId, const std::string& path, std::string& outTarget) {
+    if (volumeId < 0 || volumeId >= FF_VOLUMES) return false;
+    auto& v = volumes[volumeId];
+    ext2_ino_t ino = 0;
+    struct ext2_inode inode{};
+    if (!v.extFs || !extResolvePathNoFollowFinal(v.extFs, path, &ino) ||
+        ext2fs_read_inode(v.extFs, ino, &inode) != 0 || !LINUX_S_ISLNK(inode.i_mode)) return false;
+    const uint64_t size = (static_cast<uint64_t>(inode.i_size_high) << 32) | inode.i_size;
+    if (size == 0 || size > 32767) return false;
+    outTarget.assign(static_cast<size_t>(size), '\0');
+    if (ext2fs_is_fast_symlink(&inode)) {
+        std::memcpy(outTarget.data(), inode.i_block, static_cast<size_t>(size));
+        if (outTarget.find('\0') != std::string::npos) { outTarget.clear(); return false; }
+        return true;
+    }
+    ext2_file_t file = nullptr;
+    if (ext2fs_file_open(v.extFs, ino, 0, &file) != 0 || !file) {
+        outTarget.clear();
+        return false;
+    }
+    unsigned int got = 0;
+    const errcode_t err = ext2fs_file_read(file, outTarget.data(), static_cast<unsigned int>(size), &got);
+    ext2fs_file_close(file);
+    if (err != 0 || got != size || outTarget.find('\0') != std::string::npos) {
+        outTarget.clear();
+        return false;
+    }
+    return true;
+}
+
+bool extCreateSymlink(int volumeId, const std::string& path, const std::string& target) {
+    if (volumeId < 0 || volumeId >= FF_VOLUMES || target.empty() || target.size() > 32767 ||
+        target.find('\0') != std::string::npos) return false;
+    auto& v = volumes[volumeId];
+    if (!v.extFs || v.readOnly) return false;
+    const size_t slash = path.find_last_of('/');
+    const std::string parentPath = slash == std::string::npos ? "" : path.substr(0, slash);
+    const std::string name = slash == std::string::npos ? path : path.substr(slash + 1);
+    ext2_ino_t parent = 0;
+    size_t parentDepth = 0;
+    if (name.empty() || name.size() > EXT2_NAME_LEN ||
+        !extResolvePath(v.extFs, parentPath, &parent) || !extIsDirectory(v.extFs, parent) ||
+        !extDirectoryDepth(v.extFs, parent, &parentDepth) || !extTargetStaysInside(parentDepth, target) ||
+        extEntryExists(v.extFs, parent, name)) return false;
+    errcode_t err = ext2fs_symlink(v.extFs, parent, 0, name.c_str(), target.c_str());
+    if (err == EXT2_ET_DIR_NO_SPACE && ext2fs_expand_dir(v.extFs, parent) == 0) {
+        err = ext2fs_symlink(v.extFs, parent, 0, name.c_str(), target.c_str());
+    }
+    if (err != 0) {
+        EXT_LOGE("extCreateSymlink: ext2fs_symlink failed for '%s' err=%lu (%s)",
+                 path.c_str(), (unsigned long)err, error_message(err));
+        return false;
+    }
+    return ext2fs_flush(v.extFs) == 0;
+}
 int64_t extGetFileSize(int volumeId, const std::string& path) {
     auto& v = volumes[volumeId];
     ext2_ino_t ino = 0;
@@ -968,7 +1234,7 @@ bool extDeleteFile(int volumeId, const std::string& path) {
     const std::string name = slash == std::string::npos ? path : path.substr(slash + 1);
     ext2_ino_t parent = 0, ino = 0;
     if (!name.empty() && extResolvePath(v.extFs, parentPath, &parent) &&
-        extResolvePath(v.extFs, path, &ino)) {
+        extResolvePathNoFollowFinal(v.extFs, path, &ino)) {
         struct ext2_inode inode{};
         const bool isDir = ext2fs_read_inode(v.extFs, ino, &inode) == 0 &&
                             LINUX_S_ISDIR(inode.i_mode);
@@ -1033,6 +1299,7 @@ bool extIsSelfOrDescendant(ext2_filsys fs, ext2_ino_t candidate, ext2_ino_t ance
 }
 }  // namespace
 bool extRenameFile(int volumeId, const std::string& oldPath, const std::string& newPath) {
+    if (oldPath == newPath) return true;
     auto& v = volumes[volumeId];
     bool success = false;
     ensureExtBitmapsLoaded(volumeId);
@@ -1046,15 +1313,13 @@ bool extRenameFile(int volumeId, const std::string& oldPath, const std::string& 
     if (!oldName.empty() && !newName.empty() && newName.size() <= EXT2_NAME_LEN &&
         extResolvePath(v.extFs, oldParentPath, &oldParentIno) &&
         extResolvePath(v.extFs, newParentPath, &newParentIno) &&
-        extResolvePath(v.extFs, oldPath, &srcIno)) {
+        extResolvePathNoFollowFinal(v.extFs, oldPath, &srcIno)) {
         struct ext2_inode srcInode{};
-        const bool isDir = ext2fs_read_inode(v.extFs, srcIno, &srcInode) == 0 &&
-                            LINUX_S_ISDIR(srcInode.i_mode);
-        const int fileType = isDir ? EXT2_FT_DIR : EXT2_FT_REG_FILE;
-        ext2_ino_t destIno = 0;
-        if (extResolvePath(v.extFs, newPath, &destIno) && destIno != srcIno) {
-            return false;
-        }
+        if (ext2fs_read_inode(v.extFs, srcIno, &srcInode) != 0) return false;
+        const bool isDir = LINUX_S_ISDIR(srcInode.i_mode);
+        const bool isSymlink = LINUX_S_ISLNK(srcInode.i_mode);
+        const int fileType = isDir ? EXT2_FT_DIR : (isSymlink ? EXT2_FT_SYMLINK : EXT2_FT_REG_FILE);
+        if (extEntryExists(v.extFs, newParentIno, newName)) return false;
         if (isDir && extIsSelfOrDescendant(v.extFs, newParentIno, srcIno)) {
             // Moving a directory into itself would link it under its own
             // subtree and then unlink it from the root, detaching the whole

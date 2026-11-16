@@ -93,6 +93,31 @@ struct Vol {
         attach();
         return formatExtVolume(id, variant) && mount();
     }
+    // New image full of noise, formatted by the product's formatExtVolume(). This is what a
+    // container that was not quick-formatted looks like from the filesystem's side: unused
+    // space decrypts to garbage, so nothing may be assumed zero. (format() above starts from
+    // zeros, which hides every "forgot to initialize it" bug.)
+    bool formatOverNoise(const char* variant, uint64_t mib, uint32_t seed) {
+        closeFs();
+        path = g_tmp + "/vol" + std::to_string(id) + ".img";
+        FILE* f = fopen(path.c_str(), "wb");
+        if (!f) return false;
+        const size_t chunk = 1u << 20;
+        for (uint64_t i = 0; i < mib; ++i) {
+            const Bytes noise = pseudoRandom(chunk, seed + static_cast<uint32_t>(i));
+            if (fwrite(noise.data(), 1, noise.size(), f) != noise.size()) { fclose(f); return false; }
+        }
+        fclose(f);
+        attach();
+        return formatExtVolume(id, variant) && mount();
+    }
+    // Format the image that is already attached, in place: a volume that holds an old
+    // filesystem (reformat), as opposed to a fresh one.
+    bool reformat(const char* variant) {
+        closeFs();
+        attach();
+        return formatExtVolume(id, variant) && mount();
+    }
     // New image made by the system mkfs (a different producer than formatExtVolume).
     bool mkfs(const char* tool, const char* opts, uint64_t mib) {
         closeFs();
@@ -205,6 +230,49 @@ static void test_format_variants_pass_fsck() {
         CHECK(list(0, "").size() == 1 && has(0, "", "lost+found"));
         const std::string what = std::string("format ") + c.variant + " " + std::to_string(c.mib) + "MiB";
         v.fsckClean(what.c_str());
+    }
+}
+
+static void test_format_over_stale_payload_passes_fsck() {
+    // Regression: on a container whose free space decrypts to noise, inode 8 had a stale
+    // nonzero i_blocks, ext2fs_add_journal_inode3() failed with EEXIST (unchecked), and the
+    // volume was left advertising a journal that did not exist -> "Superblock has an
+    // invalid journal (inode 0)", unmountable on desktop Linux. ext2 only looked fine: its
+    // inode tables were just as dirty ("bad block inode looks invalid").
+    struct Case { const char* variant; uint64_t mib; const char* expectLabel; };
+    const Case cases[] = {{"ext2", 8, "ext2"},   {"ext2", 64, "ext2"}, {"ext3", 8, "ext2"},
+                          {"ext3", 64, "ext3"},  {"ext4", 8, "ext4"},  {"ext4", 64, "ext4"},
+                          {"ext4", 200, "ext4"}};  // 200 MiB = two block groups
+    uint32_t seed = 1000;
+    for (const auto& c : cases) {
+        Vol v;
+        CHECK(v.formatOverNoise(c.variant, c.mib, seed += 977));
+        CHECK_EQ(extGetFilesystemLabel(0), std::string(c.expectLabel));
+        CHECK(list(0, "").size() == 1 && has(0, "", "lost+found"));
+        CHECK(extCreateDirectory(0, "/after"));
+        CHECK(putFile(0, "/after/f.bin", pseudoRandom(100000, 9)));
+        CHECK(getFile(0, "/after/f.bin") == pseudoRandom(100000, 9));
+        const std::string what = std::string("format over noise ") + c.variant + " " + std::to_string(c.mib) + "MiB";
+        v.fsckClean(what.c_str());
+    }
+}
+
+static void test_reformat_over_existing_filesystem_passes_fsck() {
+    // Re-formatting leaves the previous journal inode (nonzero i_blocks) in place, the same
+    // failure as above reached by a different road (e.g. formatting a used USB partition).
+    const char* variants[] = {"ext4", "ext3", "ext2", "ext4"};
+    Vol v;
+    CHECK(v.format("ext4", 64));
+    CHECK(extCreateDirectory(0, "/old"));
+    CHECK(putFile(0, "/old/data.bin", pseudoRandom(400000, 3)));
+    for (const char* variant : variants) {
+        CHECK(v.reformat(variant));
+        CHECK(list(0, "").size() == 1 && has(0, "", "lost+found"));   // old contents are gone
+        CHECK(!has(0, "", "old"));
+        const std::string what = std::string("reformat as ") + variant;
+        v.fsckClean(what.c_str());
+        CHECK(extCreateDirectory(0, "/old"));
+        CHECK(putFile(0, "/old/data.bin", pseudoRandom(400000, 3)));
     }
 }
 
@@ -559,6 +627,86 @@ static void test_streams_read_ranges() {
     v.fsckClean("streams");
 }
 
+static void test_native_symlinks_follow_and_manage_link_identity() {
+    Vol v;
+    CHECK(v.format("ext4", 16));
+    const Bytes payload = pseudoRandom(4096, 177);
+    CHECK(putFile(0, "/target.bin", payload));
+    CHECK(extCreateSymlink(0, "/file-link", "target.bin"));
+    std::string target;
+    CHECK(extReadSymlink(0, "/file-link", target));
+    CHECK_EQ(target, "target.bin");
+    std::vector<std::string> links;
+    extListSymlinks(0, "/", links);
+    CHECK_EQ(links.size(), 1u);
+    CHECK(links[0].rfind("L|", 0) == 0);
+    CHECK(links[0].find("|file-link") != std::string::npos);
+    CHECK(!has(0, "", "file-link")); // symlinks stay out of normal file scans
+    CHECK(getFile(0, "/file-link") == payload); // ordinary reads follow the target
+    CHECK_EQ(extGetFileSize(0, "/file-link"), static_cast<int64_t>(payload.size()));
+
+    // Rename and delete operate on the link inode, never the target.
+    CHECK(extRenameFile(0, "/file-link", "/renamed-link"));
+    CHECK(extReadSymlink(0, "/renamed-link", target));
+    CHECK_EQ(target, "target.bin");
+    CHECK(extDeleteFile(0, "/renamed-link"));
+    CHECK(getFile(0, "/target.bin") == payload);
+
+    CHECK(extCreateDirectory(0, "/subdir"));
+    CHECK(putFile(0, "/subdir/inside.txt", Bytes{'o','k'}));
+    CHECK(extCreateSymlink(0, "/dir-link", "subdir"));
+    links.clear();
+    extListSymlinks(0, "/", links);
+    CHECK(std::any_of(links.begin(), links.end(), [](const std::string& s) {
+        return s.rfind("LD|", 0) == 0 && s.find("|dir-link") != std::string::npos;
+    }));
+    std::vector<std::string> throughLink;
+    extListDirectory(0, "/dir-link", throughLink);
+    CHECK_EQ(throughLink.size(), 1u);
+    CHECK(throughLink[0].find("inside.txt") != std::string::npos);
+    CHECK(extDeleteFile(0, "/dir-link"));
+    CHECK(getFile(0, "/subdir/inside.txt") == Bytes({'o','k'}));
+
+    // Broken links remain visible and are not mistaken for regular files.
+    const std::string longTarget = std::string(90, 'x') + "/missing-long-target";
+    CHECK(extCreateSymlink(0, "/long-link", longTarget));
+    CHECK(extReadSymlink(0, "/long-link", target));
+    CHECK_EQ(target, longTarget); // exercises the non-inline symlink data blocks
+
+    CHECK(extCreateSymlink(0, "/broken", "missing-target"));
+    links.clear();
+    extListSymlinks(0, "/", links);
+    CHECK(std::any_of(links.begin(), links.end(), [](const std::string& s) {
+        return s.find("|broken") != std::string::npos;
+    }));
+    CHECK_EQ(extGetFileSize(0, "/broken"), -1);
+
+    // Relative targets are confined to the volume root.
+    CHECK(!extCreateSymlink(0, "/escape", "../../outside"));
+    CHECK(extCreateDirectory(0, "/subdir/nested"));
+    CHECK(extCreateSymlink(0, "/subdir/nested/up", "../../target.bin"));
+    CHECK(getFile(0, "/subdir/nested/up") == payload);
+
+    // "Inside the volume" is judged from where the link PHYSICALLY lives, not from the path it was reached by.
+    // A folder link makes a path shallower or deeper than it reads; both directions must be handled.
+    CHECK(extCreateSymlink(0, "/up", "."));                                          // a folder link back to the root
+    CHECK(!extCreateSymlink(0, "/up/up/up/esc", "../../../x"));                      // reads 3 deep, is 0 deep: would leave the volume
+    CHECK(!extCreateSymlink(0, "/up/esc", "../x"));
+    CHECK(extCreateSymlink(0, "/up/up/stay", "x"));                                  // staying inside is still fine
+    CHECK(extCreateSymlink(0, "/deep-link", "subdir/nested"));                       // reads 1 deep, is 2 deep
+    CHECK(extCreateSymlink(0, "/deep-link/up2", "../../target.bin"));                // legitimate: lands on /target.bin
+    CHECK(getFile(0, "/deep-link/up2") == payload);
+    CHECK(!extCreateSymlink(0, "/deep-link/up3", "../../../target.bin"));            // one too many from the real depth
+    CHECK(extDeleteFile(0, "/up"));
+    CHECK(extDeleteFile(0, "/deep-link"));
+
+    // A cycle is refused by the filesystem path resolver instead of hanging.
+    CHECK(extCreateSymlink(0, "/loop-a", "loop-b"));
+    CHECK(extCreateSymlink(0, "/loop-b", "loop-a"));
+    CHECK_EQ(extGetFileSize(0, "/loop-a"), -1);
+    v.fsckClean("native symlinks");
+}
+
 static void test_read_only_mount_changes_nothing() {
     Vol v;
     CHECK(v.format("ext4", 16));
@@ -632,6 +780,115 @@ static void test_usb_io_flush_reaches_the_device() {
     vs.usbCache.clear();
 }
 
+
+// ---- Growing the file system after the container was expanded ------------------------
+// Extends the image file by [addMiB] (zeros, or random bytes to mimic a quick expand whose new area
+// decrypts to garbage), re-reads the device size, then runs the production grow.
+static bool extendImage(Vol& v, uint64_t addMiB, bool garbage) {
+    VolumeState& vs = volumes[v.id];
+    if (vs.extFs) { ext2fs_flush(vs.extFs); }
+    fflush(g_images[v.id]);
+    fseeko(g_images[v.id], 0, SEEK_END);
+    const uint64_t old = static_cast<uint64_t>(ftello(g_images[v.id]));
+    const std::string cmd = "truncate -s " + std::to_string(old + addMiB * 1048576) + " '" + v.path + "'";
+    if (std::system(cmd.c_str()) != 0) return false;
+    if (garbage) {
+        const Bytes noise = pseudoRandom(1048576, 99);
+        for (uint64_t i = 0; i < addMiB; ++i) {
+            fseeko(g_images[v.id], static_cast<off_t>(old + i * 1048576), SEEK_SET);
+            fwrite(noise.data(), 1, noise.size(), g_images[v.id]);
+        }
+        fflush(g_images[v.id]);
+    }
+    fseeko(g_images[v.id], 0, SEEK_END);
+    vs.dataAreaLengthBytes = static_cast<uint64_t>(ftello(g_images[v.id]));
+    return true;
+}
+
+static void growAndVerify(Vol& v, uint64_t addMiB, bool garbage, const char* what, bool fillFirst) {
+    std::vector<std::pair<std::string, Bytes>> files;
+    for (int i = 0; i < 6; ++i) {
+        files.push_back({"/f" + std::to_string(i), pseudoRandom(150000 + i * 40000, 7 + i)});
+        CHECK(putFile(v.id, files.back().first, files.back().second));
+    }
+    CHECK(extCreateDirectory(v.id, "/dir"));
+    CHECK(putFile(v.id, "/dir/inner", pseudoRandom(70000, 5)));
+    if (fillFirst) {   // fill the fs until a write fails: the usual reason to expand
+        for (int i = 0; i < 4000; ++i) {
+            if (!putFile(v.id, "/fill" + std::to_string(i), pseudoRandom(262144, 100 + i))) break;
+        }
+        CHECK(freeBytes(v.id) < 1048576);
+    }
+    const uint64_t totalBefore = [&] { uint64_t t = 0, f = 0; extGetSpaceInfo(v.id, t, f); return t; }();
+    CHECK(v.fsckClean(what));
+    CHECK(extendImage(v, addMiB, garbage));
+    CHECK(extGrowToFit(v.id) == FsGrowStatus::kGrown);
+    uint64_t totalAfter = 0, freeAfter = 0;
+    extGetSpaceInfo(v.id, totalAfter, freeAfter);
+    CHECK(totalAfter >= totalBefore + (addMiB - 2) * 1048576);
+    CHECK(freeAfter >= (addMiB - 4) * 1048576 / 2);
+    for (const auto& f : files) CHECK(getFile(v.id, f.first) == f.second);
+    CHECK(getFile(v.id, "/dir/inner") == pseudoRandom(70000, 5));
+    CHECK(v.fsckClean((std::string(what) + " after grow").c_str()));
+    // The new space is really usable, to the last megabyte.
+    CHECK(putFile(v.id, "/big_after_grow", pseudoRandom(static_cast<size_t>((addMiB / 2) * 1048576), 3)));
+    CHECK(getFile(v.id, "/big_after_grow") == pseudoRandom(static_cast<size_t>((addMiB / 2) * 1048576), 3));
+    CHECK(extGrowToFit(v.id) == FsGrowStatus::kAlreadyFills);
+    CHECK(v.fsckClean((std::string(what) + " after use").c_str()));
+}
+
+static void test_grow_variants_pass_fsck() {
+    struct Case { const char* variant; uint64_t mib; uint64_t add; bool garbage; bool full; };
+    const Case cases[] = {{"ext2", 16, 40, false, false}, {"ext3", 64, 100, false, false},
+                          {"ext4", 16, 40, true, false},  {"ext4", 32, 700, false, false},
+                          {"ext4", 16, 64, true, true},   {"ext2", 16, 64, false, true}};
+    for (const auto& c : cases) {
+        Vol v;
+        CHECK(v.format(c.variant, c.mib));
+        const std::string what = std::string("grow ") + c.variant + " " + std::to_string(c.mib) + "+" + std::to_string(c.add);
+        growAndVerify(v, c.add, c.garbage, what.c_str(), c.full);
+    }
+}
+
+static void test_grow_images_made_by_system_mkfs() {
+    if (!g_haveMkfs) { ++g_skips; std::printf("    SKIP (mkfs.ext4 not on PATH)\n"); return; }
+    struct Case { const char* tool; const char* opts; uint64_t mib; uint64_t add; };
+    const Case cases[] = {{"mkfs.ext4", "-b 4096", 32, 200},
+                          {"mkfs.ext4", "-b 1024", 16, 120},
+                          {"mkfs.ext4", "-b 4096 -O ^resize_inode", 32, 300},   // GDT blocks must move
+                          {"mkfs.ext4", "-b 1024 -O ^resize_inode -E lazy_itable_init=1", 8, 300},
+                          {"mkfs.ext4", "-b 4096 -O ^flex_bg,^resize_inode", 32, 400},
+                          {"mkfs.ext4", "-b 4096 -O 64bit,metadata_csum", 32, 200},
+                          {"mkfs.ext3", "-b 4096", 32, 150},
+                          {"mkfs.ext2", "-b 2048", 16, 90}};
+    for (const auto& c : cases) {
+        Vol v;
+        CHECK(v.mkfs(c.tool, c.opts, c.mib));
+        const std::string what = std::string("grow ") + c.tool + " " + c.opts;
+        growAndVerify(v, c.add, true, what.c_str(), false);
+    }
+}
+
+static void test_grow_refusals() {
+    Vol v;
+    CHECK(v.format("ext4", 16));
+    CHECK(extGrowToFit(v.id) == FsGrowStatus::kAlreadyFills);
+    CHECK(putFile(v.id, "/a", pseudoRandom(5000, 1)));
+    void* stream = extOpenStream(v.id, "/a");
+    CHECK(stream != nullptr);
+    CHECK(extendImage(v, 8, false));
+    CHECK(extGrowToFit(v.id) == FsGrowStatus::kBusy);     // an open stream pins the handle
+    extCloseStream(v.id, stream);
+    volumes[v.id].extFs->super->s_state &= ~EXT2_VALID_FS;
+    CHECK(extGrowToFit(v.id) == FsGrowStatus::kNeedsCheck);
+    volumes[v.id].extFs->super->s_state |= EXT2_VALID_FS;
+    volumes[v.id].readOnly = true;
+    CHECK(extGrowToFit(v.id) == FsGrowStatus::kFailed);
+    volumes[v.id].readOnly = false;
+    CHECK(extGrowToFit(v.id) == FsGrowStatus::kGrown);
+    CHECK(v.fsckClean("refusals then grow"));
+}
+
 // ---- Runner -------------------------------------------------------------------------
 static void closeAllVolumes() {
     for (int i = 0; i < FF_VOLUMES; ++i) {
@@ -647,6 +904,8 @@ int main() {
     if (!g_haveFsck) std::printf("NOTE: e2fsck not found; filesystem-consistency checks will be skipped.\n");
     const TestCase tests[] = {
         T(test_format_variants_pass_fsck),
+        T(test_format_over_stale_payload_passes_fsck),
+        T(test_reformat_over_existing_filesystem_passes_fsck),
         T(test_mounts_images_made_by_system_mkfs),
         T(test_mkdir_rules),
         T(test_names_wire_format_and_limits),
@@ -664,7 +923,11 @@ int main() {
         T(test_copy_between_and_within_volumes),
         T(test_streams_read_ranges),
         T(test_read_only_mount_changes_nothing),
+        T(test_native_symlinks_follow_and_manage_link_identity),
         T(test_usb_io_flush_reaches_the_device),
+        T(test_grow_variants_pass_fsck),
+        T(test_grow_images_made_by_system_mkfs),
+        T(test_grow_refusals),
     };
     return runTests("ext_backend", tests, sizeof(tests) / sizeof(tests[0]), closeAllVolumes);
 }

@@ -357,9 +357,12 @@ class VaultUnlockHandlers(
             try { Base64.getDecoder().decode(it) } catch (_: IllegalArgumentException) { null }
         }
         val cacheDerivedKey = call.argument<Boolean>("cacheDerivedKey") ?: false
+        // The user agreed to turn off "single-client mode" (a lock another device put on the vault).
+        val disableSingleClientMode = call.argument<Boolean>("disableSingleClientMode") ?: false
         handleUnlockDirectoryVault(
             call, result, ContainerLifecycleCore.DirectoryVaultFormat.CRYFS, "cryfs",
             preservedKey = preservedKey, cacheDerivedKey = cacheDerivedKey,
+            disableSingleClientMode = disableSingleClientMode,
         )
     }
 
@@ -378,6 +381,7 @@ class VaultUnlockHandlers(
         wireFormatName: String,
         preservedKey: ByteArray? = null,
         cacheDerivedKey: Boolean = false,
+        disableSingleClientMode: Boolean = false,
     ) {
         val uriString = call.argument<String>("filePath")
         val password = call.argument<String>("password")
@@ -410,6 +414,7 @@ class VaultUnlockHandlers(
                 preservedKey = preservedKey,
                 cacheDerivedKey = cacheDerivedKey,
                 derivedKeyHandlers = derivedKeyHandlers,
+                disableSingleClientMode = disableSingleClientMode,
             )
             activity.runOnUiThread {
                 when (outcome) {
@@ -428,7 +433,7 @@ class VaultUnlockHandlers(
                     is ContainerLifecycleCore.DirectoryVaultOutcome.AuthFailure ->
                         result.error("AUTH_FAIL", outcome.code.name, outcome.code.name)
                     is ContainerLifecycleCore.DirectoryVaultOutcome.InvalidVault ->
-                        result.error("INVALID_VAULT", outcome.reason, null)
+                        result.error(outcome.code ?: "INVALID_VAULT", outcome.reason, null)
                     is ContainerLifecycleCore.DirectoryVaultOutcome.Error ->
                         nativeOps.dispatchNativeError(outcome.exception, result)
                 }
@@ -489,6 +494,12 @@ class VaultUnlockHandlers(
             result.error("INVALID_ARGS", "filePath and password required", null)
             return
         }
+        // The migration rewrites the key files under a live session's feet, so it is only legal on a locked
+        // vault. Hiding the row in the UI is not enough: automation or a stale screen can still get here.
+        if (ContainerSessionRegistry.getVolumeIdByUri(uriString) != null) {
+            result.error("VAULT_UNLOCKED", "Lock the vault before upgrading its format", null)
+            return
+        }
         ioExecutor.execute {
             try {
                 val chars = password.toCharArray()
@@ -508,6 +519,73 @@ class VaultUnlockHandlers(
                 activity.runOnUiThread { nativeOps.dispatchNativeError(e, result) }
             }
         }
+    }
+
+    /**
+     * Password-free format of a Cryptomator vault folder, usable while it is locked or unlocked:
+     * 0 unknown, 7 format 7 (migratable), 8 current, -8 config missing (never migrate), 6 too old.
+     */
+    fun handleProbeCryptomatorVault(call: MethodCall, result: MethodChannel.Result) {
+        val uriString = call.argument<String>("filePath")
+        if (uriString == null) {
+            result.error("INVALID_ARGS", "filePath is required", null)
+            return
+        }
+        ioExecutor.execute {
+            val code = try {
+                com.aeidolon.vaultexplorer.cryptomator.CryptomatorVault.probeFormat(activity, Uri.parse(uriString))
+            } catch (_: Exception) {
+                0
+            }
+            activity.runOnUiThread { result.success(code) }
+        }
+    }
+
+    /** Whether read-write unlocks of this Cryptomator vault write `.bkup` key-file copies. Defaults to true. */
+    fun handleGetCryptomatorKeyFileBackup(call: MethodCall, result: MethodChannel.Result) {
+        val uriString = call.argument<String>("uri")
+        if (uriString == null) {
+            result.error("INVALID_ARGS", "uri is required", null)
+            return
+        }
+        val enabled = try {
+            com.aeidolon.vaultexplorer.foldervault.VaultOpenPreferences.getBackupKeyFiles(activity, uriString)
+        } catch (_: Exception) {
+            true
+        }
+        result.success(enabled)
+    }
+
+    /** Applies from the next unlock; a session that is already open is not affected. */
+    fun handleSetCryptomatorKeyFileBackup(call: MethodCall, result: MethodChannel.Result) {
+        val uriString = call.argument<String>("uri")
+        val enabled = call.argument<Boolean>("enabled")
+        if (uriString == null || enabled == null) {
+            result.error("INVALID_ARGS", "uri and enabled required", null)
+            return
+        }
+        try {
+            com.aeidolon.vaultexplorer.foldervault.VaultOpenPreferences.setBackupKeyFiles(activity, uriString, enabled)
+            result.success(true)
+        } catch (e: Exception) {
+            nativeOps.dispatchNativeError(e, result)
+        }
+    }
+
+    /** Best effort: forgets per-vault open options when the vault is removed from the app. */
+    fun handleClearVaultOpenPreferences(call: MethodCall, result: MethodChannel.Result) {
+        val uriString = call.argument<String>("uri")
+        if (uriString == null) {
+            result.error("INVALID_ARGS", "uri is required", null)
+            return
+        }
+        val cleared = try {
+            com.aeidolon.vaultexplorer.foldervault.VaultOpenPreferences.clearVault(activity, uriString)
+            true
+        } catch (_: Exception) {
+            false
+        }
+        result.success(cleared)
     }
 
     fun handleChangeGocryptfsVaultPassword(call: MethodCall, result: MethodChannel.Result) {

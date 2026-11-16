@@ -2322,6 +2322,14 @@ class AppLocalizationsFr extends AppLocalizations {
   String get gocryptfsCipherLabel => 'Chiffrement du contenu';
 
   @override
+  String get gocryptfsNamesRandomIvOption =>
+      'Aléatoire par dossier (par défaut)';
+
+  @override
+  String get gocryptfsNamesDeterministicOption =>
+      'Déterministe (pour les dossiers synchronisés)';
+
+  @override
   String get cryfsCipherLabel => 'Chiffrement du contenu';
 
   @override
@@ -2497,6 +2505,161 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get keepCurrentOption => 'Conserver l\'actuel';
+
+  @override
+  String get toolExpandVolumeTitle => 'Agrandir le volume VeraCrypt';
+
+  @override
+  String get toolExpandVolumeSubtitle =>
+      'Agrandir un volume standard, comme l’outil d’extension de volume pour ordinateur';
+
+  @override
+  String get toolExpandLuksVolumeTitle => 'Agrandir le conteneur LUKS';
+
+  @override
+  String get toolExpandLuksVolumeSubtitle =>
+      'Agrandir les conteneurs LUKS1 et LUKS2, y compris les métadonnées LUKS2 à taille fixe';
+
+  @override
+  String get luksToolsExpandNote =>
+      'Sauvegardez d\'abord le conteneur. Prend en charge LUKS1 et LUKS2. Les systèmes de fichiers NTFS et ext2/3/4 peuvent être agrandis sur place (FAT et exFAT ne sont pas pris en charge). L\'espace ajouté peut être initialisé avec des zéros chiffrés. Un fichier de clé remplace le mot de passe s\'il est utilisé.';
+
+  @override
+  String get toolExpandBitLockerVolumeTitle =>
+      'Agrandir un conteneur BitLocker';
+
+  @override
+  String get toolExpandBitLockerVolumeSubtitle =>
+      'Agrandit un fichier de volume BitLocker ou une image VHD/VHDX et étend son système de fichiers NTFS';
+
+  @override
+  String get bitlockerToolsExpandNote =>
+      'Sauvegardez d\'abord le conteneur. Cette opération réécrit les métadonnées BitLocker pour que le volume chiffré couvre l\'espace ajouté ; vérifiez donc le résultat sur une copie avant de vous y fier. Fonctionne avec les volumes BitLocker entièrement chiffrés de Windows 7 ou ultérieur, soit sous forme de fichier de volume brut, soit dans un VHD ou VHDX fixe ou dynamique. Pour une image de disque, saisissez la nouvelle taille totale du disque : le disque virtuel et sa dernière partition (MBR ou GPT) sont également agrandis, la partition BitLocker doit donc être la dernière. BitLocker To Go et les volumes à chiffrement à l\'écriture (espace utilisé uniquement) ne sont pas pris en charge. NTFS peut être étendu sur place (FAT et exFAT non). L\'espace ajouté peut éventuellement être rempli de zéros chiffrés. Déverrouillez avec le mot de passe ou la clé de récupération à 48 chiffres.';
+
+  @override
+  String get bitlockerToolsPasswordLabel =>
+      'Mot de passe ou clé de récupération';
+
+  @override
+  String get toolHiddenInExistingTitle => 'Ajouter un volume caché';
+
+  @override
+  String get toolHiddenInExistingSubtitle =>
+      'Créer un volume caché dans un volume standard existant';
+
+  @override
+  String get vcToolsPickContainer => 'Choisir le conteneur';
+
+  @override
+  String get vcToolsNoContainer => 'Aucun conteneur sélectionné';
+
+  @override
+  String get vcToolsPasswordLabel => 'Mot de passe du volume';
+
+  @override
+  String get vcToolsPimLabel => 'PIM (facultatif)';
+
+  @override
+  String get vcToolsNewSizeLabel => 'Nouvelle taille du conteneur (Mio)';
+
+  @override
+  String get vcToolsInitFreeSpace => 'Initialiser le nouvel espace';
+
+  @override
+  String get vcToolsInitFreeSpaceHint =>
+      'Remplit l’espace ajouté avec des données chiffrées avec la clé du volume afin de ne pas pouvoir le distinguer du reste. Désactivez pour un agrandissement rapide.';
+
+  @override
+  String get vcToolsExpandAction => 'Agrandir le volume';
+
+  @override
+  String get vcToolsExpandNote =>
+      'Le conteneur est d’abord agrandi. Ensuite, le système de fichiers qu’il contient est étendu à l’espace ajouté lorsque c’est possible sans reformater (NTFS, ext2/3/4). FAT et exFAT ne peuvent pas être étendus sur place ; leur espace ajouté reste non alloué. Sauvegardez d’abord le volume.';
+
+  @override
+  String get vcToolsExpandDone => 'Volume agrandi';
+
+  @override
+  String get vcToolsGrowFsToggle => 'Étendre aussi le système de fichiers';
+
+  @override
+  String get vcToolsGrowFsToggleHint =>
+      'Permet aux volumes NTFS et ext2/3/4 d’utiliser tout de suite l’espace ajouté, sans reformatage.';
+
+  @override
+  String get vcToolsGrowFsOnlyAction =>
+      'Étendre seulement le système de fichiers';
+
+  @override
+  String get vcToolsFsGrown =>
+      'Système de fichiers étendu : l’espace ajouté est utilisable.';
+
+  @override
+  String get vcToolsFsAlreadyFills =>
+      'Le système de fichiers occupe déjà tout le volume.';
+
+  @override
+  String get vcToolsFsUnsupported =>
+      'Ce système de fichiers ne peut pas être étendu sur place (FAT et exFAT non). L’espace ajouté reste non alloué jusqu’au reformatage du volume ; sauvegardez d’abord ses fichiers.';
+
+  @override
+  String get vcToolsFsBusy =>
+      'Des fichiers sont encore ouverts dans le volume. Fermez-les, verrouillez le volume, puis réessayez « Agrandir uniquement le système de fichiers ».';
+
+  @override
+  String get vcToolsFsNeedsCheck =>
+      'Le système de fichiers est marqué comme nécessitant une vérification. Lancez Vérifier et réparer sur le volume, puis utilisez « Étendre seulement le système de fichiers ».';
+
+  @override
+  String get vcToolsFsFailed =>
+      'Le système de fichiers n’a pas pu être étendu. Le volume lui-même est agrandi ; lancez Vérifier et réparer avant de l’utiliser.';
+
+  @override
+  String get vcToolsAnalyzeAction => 'Vérifier l’espace libre';
+
+  @override
+  String get vcToolsMaxHidden => 'Plus grand volume caché possible';
+
+  @override
+  String get vcToolsNoRoom =>
+      'Il n’y a pas de place pour un volume caché : la fin du volume externe est occupée.';
+
+  @override
+  String get vcToolsHiddenSizeLabel => 'Taille du volume caché (Mio)';
+
+  @override
+  String get vcToolsHiddenPasswordLabel => 'Mot de passe du volume caché';
+
+  @override
+  String get vcToolsHiddenConfirmLabel =>
+      'Confirmer le mot de passe du volume caché';
+
+  @override
+  String get vcToolsHiddenFsLabel => 'Système de fichiers du volume caché';
+
+  @override
+  String get vcToolsQuickFormat => 'Formatage rapide';
+
+  @override
+  String get vcToolsCreateHiddenAction => 'Créer le volume caché';
+
+  @override
+  String get vcToolsHiddenDone => 'Volume caché créé';
+
+  @override
+  String get vcToolsHiddenNote =>
+      'Le volume caché utilise l’espace libre à la fin du volume externe. Ensuite, montez toujours le volume externe avec la protection du volume caché lorsque vous y écrivez, sinon le volume caché risque d’être écrasé.';
+
+  @override
+  String get vcToolsPasswordsDiffer =>
+      'Les mots de passe ne correspondent pas.';
+
+  @override
+  String get vcToolsInvalidSize => 'Entrez une taille valide.';
+
+  @override
+  String get vcToolsCredentialsRequired =>
+      'Entrez le mot de passe du volume ou ajoutez un fichier clé.';
 
   @override
   String get readOnlyModeLabel => 'Mode lecture seule';
@@ -6885,6 +7048,13 @@ class AppLocalizationsFr extends AppLocalizations {
       'Afficher les fichiers en point et les dossiers système';
 
   @override
+  String get showNoMediaFilesLabel => 'Show Media Hidden by .nomedia';
+
+  @override
+  String get showNoMediaFilesDesc =>
+      'Include media in folders containing a .nomedia file';
+
+  @override
   String get dontAskAgain => 'Ne plus demander';
 
   @override
@@ -8710,7 +8880,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get statusBadgeSubtitle =>
-      'Affiche le minuteur de diaporama ou l’indicateur de photo statique';
+      'Affiche le compte à rebours du diaporama pendant sa lecture';
 
   @override
   String get topBarActionsHeader => 'Actions de la barre supérieure';
@@ -14287,11 +14457,11 @@ class AppLocalizationsFr extends AppLocalizations {
   String get vaultListingDetails => 'Détails';
 
   @override
-  String get vaultListingSymbolicLinksTitle => 'Liens symboliques';
+  String get vaultListingSymbolicLinksTitle => 'Raccourcis';
 
   @override
   String get vaultListingSymbolicLinksNote =>
-      'Un lien symbolique pointe vers un autre emplacement. Il n’est jamais ouvert ni suivi ici ; touchez-le pour copier sa cible.';
+      'Touchez un raccourci pour ouvrir sa cible. Les cibles relatives restent dans ce coffre ; les cibles absolues ou rompues ne peuvent pas être ouvertes.';
 
   @override
   String get vaultListingHiddenEntriesTitle => 'Entrées non affichées';
@@ -14454,4 +14624,237 @@ class AppLocalizationsFr extends AppLocalizations {
   String galleryPlaceHintCoordinates(int km) {
     return 'Aucune ville à moins de $km km : regroupé par coordonnées';
   }
+
+  @override
+  String get cryptomatorBackupKeyFilesTitle =>
+      'Sauvegarder les fichiers de clé au déverrouillage';
+
+  @override
+  String get cryptomatorBackupKeyFilesSubtitle =>
+      'Conserve une copie de masterkey.cryptomator et de vault.cryptomator à côté des originaux, comme Cryptomator sur ordinateur. S’applique dès le prochain déverrouillage. Les sessions en lecture seule n’écrivent jamais.';
+
+  @override
+  String get cryptomatorUpgradeTitle => 'Mettre à niveau le format du coffre';
+
+  @override
+  String get cryptomatorUpgradeSubtitle =>
+      'Ce coffre utilise l’ancien format 7.';
+
+  @override
+  String get cryptomatorUpgradeLockFirst =>
+      'Verrouillez le coffre pour le mettre à niveau';
+
+  @override
+  String get cryptomatorUpgradeWarning =>
+      'La mise à niveau convertit ce coffre au format 8. Elle est irréversible, et les versions de Cryptomator antérieures à la 1.6 ne pourront plus ouvrir le coffre ensuite.\n\nUne copie du fichier de clé actuel est conservée sous le nom masterkey.cryptomator.<id>.bkup. Si une autre application synchronise ce coffre, laissez-la d’abord terminer la synchronisation.';
+
+  @override
+  String get cryptomatorUpgradeConfirm => 'Je comprends que c’est irréversible';
+
+  @override
+  String get cryptomatorUpgradeAction => 'Mettre à niveau';
+
+  @override
+  String get cryptomatorUpgradedMessage => 'Coffre mis à niveau au format 8';
+
+  @override
+  String get cryptomatorUpgradeUnlockedError => 'Verrouillez d’abord le coffre';
+
+  @override
+  String get cryptomatorConfigMissingWarning =>
+      'vault.cryptomator est manquant. Si une autre application synchronise ce coffre, attendez la fin de la synchronisation, puis réessayez. Ne lancez pas la mise à niveau.';
+
+  @override
+  String get cryptomatorUpgradeFailedMessage =>
+      'Impossible de mettre à niveau le coffre';
+
+  @override
+  String get newSymbolicLinkTitle => 'Nouveau lien symbolique';
+
+  @override
+  String get symbolicLinkNameHint => 'Nom du lien';
+
+  @override
+  String get symbolicLinkTargetHint => 'Pointe vers';
+
+  @override
+  String get symbolicLinkTargetHelper =>
+      'La cible est enregistrée exactement telle que saisie. À l’ouverture, les cibles relatives sont résolues dans ce coffre ; les cibles absolues ne sont pas suivies.';
+
+  @override
+  String get symbolicLinkTargetTooLong =>
+      'La cible est trop longue (32 767 octets maximum)';
+
+  @override
+  String get symbolicLinkTargetInvalid =>
+      'La cible ne peut pas contenir de caractère nul';
+
+  @override
+  String get symbolicLinkNameTaken =>
+      'Un fichier, un dossier ou un lien portant ce nom existe déjà';
+
+  @override
+  String get deleteSymbolicLinkTitle => 'Supprimer le lien symbolique ?';
+
+  @override
+  String deleteSymbolicLinkMessage(String name) {
+    return 'Supprimer le lien « $name » ? Seul le lien est supprimé ; ce vers quoi il pointe n’est pas touché.';
+  }
+
+  @override
+  String get symbolicLinkRenameTitle => 'Renommer le lien symbolique';
+
+  @override
+  String get symbolicLinkBrowseTarget => 'Parcourir le coffre';
+
+  @override
+  String get symbolicLinkSelectTargetTitle => 'Choisir la cible du raccourci';
+
+  @override
+  String get symbolicLinkSelectThisFolder => 'Sélectionner ce dossier';
+
+  @override
+  String get symbolicLinkPickerLoadError => 'Impossible de charger ce dossier';
+
+  @override
+  String get shortcutBadge => 'Raccourci';
+
+  @override
+  String get emptyFolder => 'Ce dossier est vide';
+
+  @override
+  String get symbolicLinkTargetHelperRelative =>
+      'Utilisez un chemin relatif dans ce conteneur. La cible peut ne pas exister ; renommer ou supprimer le lien ne modifie pas la cible.';
+
+  @override
+  String get symbolicLinkTargetOutsideVault =>
+      'La cible doit être un chemin relatif qui reste dans ce conteneur.';
+
+  @override
+  String get symbolicLinkPickerUnresolvable =>
+      'Impossible de construire une cible relative à partir d’ici. Saisissez la cible à la place.';
+
+  @override
+  String get editMetadataAction => 'Modifier les métadonnées';
+
+  @override
+  String get editTagsAction => 'Modifier les tags';
+
+  @override
+  String get editDateTimeAction => 'Modifier la date et l’heure';
+
+  @override
+  String get removeMetadataAction => 'Supprimer les métadonnées';
+
+  @override
+  String get metadataFormatsNote =>
+      'Les tags, dates et suppressions sont écrits dans les images JPEG, PNG et WebP. Les autres fichiers reçoivent seulement une nouvelle date de modification.';
+
+  @override
+  String get metadataReadOnlyMessage => 'Ce coffre est en lecture seule';
+
+  @override
+  String get tagsAddHint => 'Ajouter des tags, séparés par des virgules';
+
+  @override
+  String get tagsNoneYet => 'Aucun tag';
+
+  @override
+  String get dateModeSet => 'Définir';
+
+  @override
+  String get dateModeShift => 'Décaler';
+
+  @override
+  String get dateModeFromModified => 'D’après la date de modification';
+
+  @override
+  String get dateModeFromName => 'D’après le nom du fichier';
+
+  @override
+  String get dateShiftLater => 'Plus tard';
+
+  @override
+  String get dateShiftEarlier => 'Plus tôt';
+
+  @override
+  String get dateDaysLabel => 'Jours';
+
+  @override
+  String get dateHoursLabel => 'Heures';
+
+  @override
+  String get dateMinutesLabel => 'Minutes';
+
+  @override
+  String get dateAlsoSetModified =>
+      'Définir aussi la date de modification du fichier';
+
+  @override
+  String dateFromNameMatches(int matched, int total) {
+    return '$matched noms de fichier sur $total contiennent une date';
+  }
+
+  @override
+  String get stripExifLabel => 'Exif (appareil, date, lieu)';
+
+  @override
+  String get stripXmpLabel => 'XMP (tags, note, données d’édition)';
+
+  @override
+  String get stripIptcLabel => 'IPTC / Photoshop (légendes, crédits)';
+
+  @override
+  String get stripCommentsLabel => 'Commentaires';
+
+  @override
+  String get stripIccLabel =>
+      'Profil colorimétrique (peut changer les couleurs)';
+
+  @override
+  String get stripKeepOrientationLabel => 'Conserver l’orientation';
+
+  @override
+  String get stripKeepOrientationDesc =>
+      'Sans cela, les photos prises en travers peuvent apparaître pivotées';
+
+  @override
+  String get stripWarning =>
+      'Cela réécrit les fichiers et ne peut pas être annulé.';
+
+  @override
+  String metadataProgress(int done, int total) {
+    return 'Mise à jour de $done sur $total';
+  }
+
+  @override
+  String metadataResultUpdated(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count fichiers mis à jour',
+      one: '1 fichier mis à jour',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get metadataResultUnchanged => 'Rien à modifier';
+
+  @override
+  String metadataResultSkipped(int count) {
+    return '$count ignorés (non pris en charge)';
+  }
+
+  @override
+  String metadataResultFailed(int count) {
+    return '$count en échec';
+  }
+
+  @override
+  String get showNoMediaFoldersLabel => 'Afficher les dossiers .nomedia';
+
+  @override
+  String get showNoMediaFoldersDesc =>
+      'Inclure les dossiers contenant un fichier .nomedia, normalement ignorés par les applications de galerie';
 }

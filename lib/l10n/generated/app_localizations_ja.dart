@@ -2188,6 +2188,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get gocryptfsCipherLabel => 'コンテンツ暗号方式';
 
   @override
+  String get gocryptfsNamesRandomIvOption => 'フォルダーごとにランダム（デフォルト）';
+
+  @override
+  String get gocryptfsNamesDeterministicOption => '決定論的（同期フォルダー用）';
+
+  @override
   String get cryfsCipherLabel => 'コンテンツ暗号方式';
 
   @override
@@ -2353,6 +2359,151 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get keepCurrentOption => '現在の設定を維持';
+
+  @override
+  String get toolExpandVolumeTitle => 'VeraCryptボリュームを拡張';
+
+  @override
+  String get toolExpandVolumeSubtitle =>
+      'デスクトップ版のボリュームエクスパンダーのように、標準ボリュームを拡大します';
+
+  @override
+  String get toolExpandLuksVolumeTitle => 'LUKSコンテナを拡張';
+
+  @override
+  String get toolExpandLuksVolumeSubtitle =>
+      '固定サイズLUKS2メタデータを含むLUKS1およびLUKS2コンテナの拡張';
+
+  @override
+  String get luksToolsExpandNote =>
+      '事前にコンテナのバックアップを作成してください。LUKS1およびLUKS2に対応しています。NTFSおよびext2/3/4ファイルシステムは直接拡張できます（FATおよびexFATは拡張不可）。追加された領域は暗号化されたゼロで初期化できます。キーファイルを使用する場合はパスワードの代わりになります。';
+
+  @override
+  String get toolExpandBitLockerVolumeTitle => 'BitLockerコンテナを拡張';
+
+  @override
+  String get toolExpandBitLockerVolumeSubtitle =>
+      'BitLockerボリュームファイルまたはVHD/VHDXイメージを拡大し、NTFSファイルシステムも拡張します';
+
+  @override
+  String get bitlockerToolsExpandNote =>
+      '先にコンテナをバックアップしてください。この操作はBitLockerのメタデータを書き換えて、暗号化ボリュームが追加された領域を含むようにします。結果を頼りにする前に、コピーで確認してください。Windows 7以降の完全に暗号化されたBitLockerボリュームに対応し、未加工のボリュームファイルのほか、固定または動的のVHD・VHDX内のボリュームにも使えます。ディスクイメージでは、ディスク全体の新しいサイズを入力してください。仮想ディスクとその最後のパーティション（MBRまたはGPT）も拡張されるため、BitLockerパーティションは最後のパーティションである必要があります。BitLocker To Goと、書き込み時暗号化（使用領域のみ）のボリュームは非対応です。NTFSはその場で拡張できます（FATとexFATは不可）。追加した領域は、必要に応じて暗号化されたゼロで埋められます。パスワードまたは48桁の回復キーでロックを解除します。';
+
+  @override
+  String get bitlockerToolsPasswordLabel => 'パスワードまたは回復キー';
+
+  @override
+  String get toolHiddenInExistingTitle => '隠しボリュームを追加';
+
+  @override
+  String get toolHiddenInExistingSubtitle => '既存の標準ボリューム内に隠しボリュームを作成します';
+
+  @override
+  String get vcToolsPickContainer => 'コンテナを選択';
+
+  @override
+  String get vcToolsNoContainer => 'コンテナが選択されていません';
+
+  @override
+  String get vcToolsPasswordLabel => 'ボリュームのパスワード';
+
+  @override
+  String get vcToolsPimLabel => 'PIM（省略可能）';
+
+  @override
+  String get vcToolsNewSizeLabel => 'コンテナの新しいサイズ (MiB)';
+
+  @override
+  String get vcToolsInitFreeSpace => '新しい領域を初期化';
+
+  @override
+  String get vcToolsInitFreeSpaceHint =>
+      '他の領域と区別がつかないよう、追加領域をボリュームキーで暗号化されたデータで埋めます。高速拡張を行うにはオフにしてください。';
+
+  @override
+  String get vcToolsExpandAction => 'ボリュームを拡張';
+
+  @override
+  String get vcToolsExpandNote =>
+      'まずコンテナーが拡張されます。その後、再フォーマットせずに可能な場合（NTFS、ext2/3/4）は、内部のファイルシステムも追加された領域まで拡張されます。FAT と exFAT はその場で拡張できず、追加された領域は未割り当てのままです。先にボリュームをバックアップしてください。';
+
+  @override
+  String get vcToolsExpandDone => 'ボリュームを拡張しました';
+
+  @override
+  String get vcToolsGrowFsToggle => 'ファイルシステムも拡張する';
+
+  @override
+  String get vcToolsGrowFsToggleHint =>
+      'NTFS および ext2/3/4 のボリュームで、再フォーマットなしにすぐ追加領域を使えるようにします。';
+
+  @override
+  String get vcToolsGrowFsOnlyAction => 'ファイルシステムのみ拡張';
+
+  @override
+  String get vcToolsFsGrown => 'ファイルシステムを拡張しました。追加された領域を使用できます。';
+
+  @override
+  String get vcToolsFsAlreadyFills => 'ファイルシステムはすでにボリューム全体を使用しています。';
+
+  @override
+  String get vcToolsFsUnsupported =>
+      'このファイルシステムはその場で拡張できません（FAT と exFAT は不可）。追加された領域は、ボリュームを再フォーマットするまで未割り当てのままです。先にファイルをバックアップしてください。';
+
+  @override
+  String get vcToolsFsBusy =>
+      'ボリューム内でファイルがまだ開かれています。ファイルを閉じてボリュームをロックし、「ファイルシステムのみを拡張」を再試行してください。';
+
+  @override
+  String get vcToolsFsNeedsCheck =>
+      'ファイルシステムにチェックが必要とマークされています。ボリュームで「チェックと修復」を実行してから、「ファイルシステムのみ拡張」を使用してください。';
+
+  @override
+  String get vcToolsFsFailed =>
+      'ファイルシステムを拡張できませんでした。ボリューム自体は拡張されています。使用する前に「チェックと修復」を実行してください。';
+
+  @override
+  String get vcToolsAnalyzeAction => '空き領域を確認';
+
+  @override
+  String get vcToolsMaxHidden => '作成可能な最大の隠しボリューム';
+
+  @override
+  String get vcToolsNoRoom => '隠しボリューム用の空きがありません。外側ボリュームの末尾が使用されています。';
+
+  @override
+  String get vcToolsHiddenSizeLabel => '隠しボリュームのサイズ (MiB)';
+
+  @override
+  String get vcToolsHiddenPasswordLabel => '隠しボリュームのパスワード';
+
+  @override
+  String get vcToolsHiddenConfirmLabel => '隠しボリュームのパスワードを確認';
+
+  @override
+  String get vcToolsHiddenFsLabel => '隠しボリュームのファイルシステム';
+
+  @override
+  String get vcToolsQuickFormat => 'クイックフォーマット';
+
+  @override
+  String get vcToolsCreateHiddenAction => '隠しボリュームを作成';
+
+  @override
+  String get vcToolsHiddenDone => '隠しボリュームを作成しました';
+
+  @override
+  String get vcToolsHiddenNote =>
+      '隠しボリュームは外側ボリュームの末尾の空き領域を使用します。作成後、外側ボリュームへの書き込みを行う際は必ず隠しボリューム保護を有効にしてマウントしてください。保護しないと隠しボリュームが上書きされる可能性があります。';
+
+  @override
+  String get vcToolsPasswordsDiffer => 'パスワードが一致しません。';
+
+  @override
+  String get vcToolsInvalidSize => '有効なサイズを入力してください。';
+
+  @override
+  String get vcToolsCredentialsRequired => 'ボリュームのパスワードを入力するか、キーファイルを追加してください。';
 
   @override
   String get readOnlyModeLabel => '読み取り専用モード';
@@ -6499,6 +6650,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get showHiddenFilesDesc => 'ドットファイルとシステムフォルダを表示します';
 
   @override
+  String get showNoMediaFilesLabel => 'Show Media Hidden by .nomedia';
+
+  @override
+  String get showNoMediaFilesDesc =>
+      'Include media in folders containing a .nomedia file';
+
+  @override
   String get dontAskAgain => '今後表示しない';
 
   @override
@@ -8189,7 +8347,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get statusBadgeTitle => 'ステータスバッジ';
 
   @override
-  String get statusBadgeSubtitle => 'スライドショーのタイマーまたは静止画インジケーターを表示';
+  String get statusBadgeSubtitle => 'スライドショーの再生中にカウントダウンを表示';
 
   @override
   String get topBarActionsHeader => 'トップバーのアクション';
@@ -13391,11 +13549,11 @@ class AppLocalizationsJa extends AppLocalizations {
   String get vaultListingDetails => '詳細';
 
   @override
-  String get vaultListingSymbolicLinksTitle => 'シンボリックリンク';
+  String get vaultListingSymbolicLinksTitle => 'ショートカット';
 
   @override
   String get vaultListingSymbolicLinksNote =>
-      'シンボリックリンクは別の場所を指します。ここでは開いたりたどったりしません。タップするとリンク先をコピーできます。';
+      'ショートカットをタップするとリンク先が開きます。相対パスはこの保管庫内に限定され、絶対パスやリンク切れのリンクは開けません。';
 
   @override
   String get vaultListingHiddenEntriesTitle => '表示されていない項目';
@@ -13556,4 +13714,225 @@ class AppLocalizationsJa extends AppLocalizations {
   String galleryPlaceHintCoordinates(int km) {
     return '$km km 以内に都市なし: 座標でグループ化';
   }
+
+  @override
+  String get cryptomatorBackupKeyFilesTitle => 'ロック解除時にキーファイルをバックアップ';
+
+  @override
+  String get cryptomatorBackupKeyFilesSubtitle =>
+      'デスクトップ版 Cryptomator と同様に、masterkey.cryptomator と vault.cryptomator のコピーを元のファイルの隣に保存します。次回のロック解除から有効です。読み取り専用のセッションでは書き込みません。';
+
+  @override
+  String get cryptomatorUpgradeTitle => '保管庫の形式をアップグレード';
+
+  @override
+  String get cryptomatorUpgradeSubtitle => 'この保管庫は古い形式 7 を使用しています。';
+
+  @override
+  String get cryptomatorUpgradeLockFirst => 'アップグレードするには保管庫をロックしてください';
+
+  @override
+  String get cryptomatorUpgradeWarning =>
+      'アップグレードすると、この保管庫は形式 8 に変更されます。元に戻すことはできず、その後は 1.6 より前のバージョンの Cryptomator ではこの保管庫を開けなくなります。\n\n現在のキーファイルのコピーは masterkey.cryptomator.<id>.bkup として保持されます。別のアプリがこの保管庫を同期している場合は、先に同期が完了するまで待ってください。';
+
+  @override
+  String get cryptomatorUpgradeConfirm => '元に戻せないことを理解しました';
+
+  @override
+  String get cryptomatorUpgradeAction => 'アップグレード';
+
+  @override
+  String get cryptomatorUpgradedMessage => '保管庫を形式 8 にアップグレードしました';
+
+  @override
+  String get cryptomatorUpgradeUnlockedError => '先に保管庫をロックしてください';
+
+  @override
+  String get cryptomatorConfigMissingWarning =>
+      'vault.cryptomator が見つかりません。別のアプリがこの保管庫を同期している場合は、同期が完了するまで待ってから、もう一度お試しください。アップグレードしないでください。';
+
+  @override
+  String get cryptomatorUpgradeFailedMessage => '保管庫をアップグレードできませんでした';
+
+  @override
+  String get newSymbolicLinkTitle => '新規シンボリックリンク';
+
+  @override
+  String get symbolicLinkNameHint => 'リンク名';
+
+  @override
+  String get symbolicLinkTargetHint => 'リンク先';
+
+  @override
+  String get symbolicLinkTargetHelper =>
+      '入力したとおりに保存されます。開くとき、相対パスはこの保管庫内で解決され、絶対パスはたどりません。';
+
+  @override
+  String get symbolicLinkTargetTooLong => 'リンク先が長すぎます（最大 32,767 バイト）';
+
+  @override
+  String get symbolicLinkTargetInvalid => 'リンク先に null 文字は使えません';
+
+  @override
+  String get symbolicLinkNameTaken => 'この名前のファイル、フォルダ、またはリンクはすでに存在します';
+
+  @override
+  String get deleteSymbolicLinkTitle => 'シンボリックリンクを削除しますか？';
+
+  @override
+  String deleteSymbolicLinkMessage(String name) {
+    return 'リンク「$name」を削除しますか？削除されるのはリンクだけで、リンク先には影響しません。';
+  }
+
+  @override
+  String get symbolicLinkRenameTitle => 'シンボリックリンクの名前を変更';
+
+  @override
+  String get symbolicLinkBrowseTarget => '保管庫を参照';
+
+  @override
+  String get symbolicLinkSelectTargetTitle => 'ショートカットのリンク先を選択';
+
+  @override
+  String get symbolicLinkSelectThisFolder => 'このフォルダーを選択';
+
+  @override
+  String get symbolicLinkPickerLoadError => 'このフォルダーを読み込めませんでした';
+
+  @override
+  String get shortcutBadge => 'ショートカット';
+
+  @override
+  String get emptyFolder => 'このフォルダーは空です';
+
+  @override
+  String get symbolicLinkTargetHelperRelative =>
+      'このコンテナー内の相対パスを指定してください。リンク先が存在しなくてもかまいません。リンクの名前を変更または削除してもリンク先は変わりません。';
+
+  @override
+  String get symbolicLinkTargetOutsideVault =>
+      'リンク先はこのコンテナー内に収まる相対パスである必要があります。';
+
+  @override
+  String get symbolicLinkPickerUnresolvable =>
+      'ここからは相対的なリンク先を作成できません。リンク先を直接入力してください。';
+
+  @override
+  String get editMetadataAction => 'メタデータを編集';
+
+  @override
+  String get editTagsAction => 'タグを編集';
+
+  @override
+  String get editDateTimeAction => '日付と時刻を編集';
+
+  @override
+  String get removeMetadataAction => 'メタデータを削除';
+
+  @override
+  String get metadataFormatsNote =>
+      'タグ、日付、削除は JPEG・PNG・WebP 画像に書き込まれます。その他のファイルは更新日時のみ変更されます。';
+
+  @override
+  String get metadataReadOnlyMessage => 'この保管庫は読み取り専用です';
+
+  @override
+  String get tagsAddHint => 'タグをカンマ区切りで追加';
+
+  @override
+  String get tagsNoneYet => 'タグはまだありません';
+
+  @override
+  String get dateModeSet => '設定';
+
+  @override
+  String get dateModeShift => 'ずらす';
+
+  @override
+  String get dateModeFromModified => '更新日時から';
+
+  @override
+  String get dateModeFromName => 'ファイル名から';
+
+  @override
+  String get dateShiftLater => '後へ';
+
+  @override
+  String get dateShiftEarlier => '前へ';
+
+  @override
+  String get dateDaysLabel => '日';
+
+  @override
+  String get dateHoursLabel => '時間';
+
+  @override
+  String get dateMinutesLabel => '分';
+
+  @override
+  String get dateAlsoSetModified => 'ファイルの更新日時も設定する';
+
+  @override
+  String dateFromNameMatches(int matched, int total) {
+    return '$total 件中 $matched 件のファイル名に日付が含まれています';
+  }
+
+  @override
+  String get stripExifLabel => 'Exif（カメラ、日付、位置情報）';
+
+  @override
+  String get stripXmpLabel => 'XMP（タグ、評価、編集データ）';
+
+  @override
+  String get stripIptcLabel => 'IPTC / Photoshop（キャプション、クレジット）';
+
+  @override
+  String get stripCommentsLabel => 'コメント';
+
+  @override
+  String get stripIccLabel => 'カラープロファイル（色が変わる場合があります）';
+
+  @override
+  String get stripKeepOrientationLabel => '向きを保持';
+
+  @override
+  String get stripKeepOrientationDesc => '保持しないと、横向きで撮影した写真が回転して表示されることがあります';
+
+  @override
+  String get stripWarning => 'ファイルを書き換えます。元に戻すことはできません。';
+
+  @override
+  String metadataProgress(int done, int total) {
+    return '$total 件中 $done 件を更新中';
+  }
+
+  @override
+  String metadataResultUpdated(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 件のファイルを更新しました',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get metadataResultUnchanged => '変更の必要はありませんでした';
+
+  @override
+  String metadataResultSkipped(int count) {
+    return '$count 件をスキップ（非対応）';
+  }
+
+  @override
+  String metadataResultFailed(int count) {
+    return '$count 件が失敗';
+  }
+
+  @override
+  String get showNoMediaFoldersLabel => '.nomedia フォルダーを表示';
+
+  @override
+  String get showNoMediaFoldersDesc =>
+      'ギャラリーアプリが通常スキップする .nomedia ファイル付きのフォルダーを含めます';
 }

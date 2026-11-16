@@ -2337,6 +2337,14 @@ class AppLocalizationsUk extends AppLocalizations {
   String get gocryptfsCipherLabel => 'Шифр вмісту';
 
   @override
+  String get gocryptfsNamesRandomIvOption =>
+      'Випадковий для кожної папки (за замовчуванням)';
+
+  @override
+  String get gocryptfsNamesDeterministicOption =>
+      'Детермінований (для синхронізованих папок)';
+
+  @override
   String get cryfsCipherLabel => 'Шифр вмісту';
 
   @override
@@ -2510,6 +2518,155 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String get keepCurrentOption => 'Зберегти поточний';
+
+  @override
+  String get toolExpandVolumeTitle => 'Розширити том VeraCrypt';
+
+  @override
+  String get toolExpandVolumeSubtitle =>
+      'Збільшити стандартний том, як у десктопній утиліті розширення томів';
+
+  @override
+  String get toolExpandLuksVolumeTitle => 'Розширити контейнер LUKS';
+
+  @override
+  String get toolExpandLuksVolumeSubtitle =>
+      'Збільшення контейнерів LUKS1 та LUKS2, включно з метаданими LUKS2 фіксованого розміру';
+
+  @override
+  String get luksToolsExpandNote =>
+      'Спочатку створіть резервну копію контейнера. Підтримуються LUKS1 та LUKS2. Файлові системи NTFS та ext2/3/4 можна розширювати безпосередньо (FAT та exFAT не підтримуються). Додане місце можна ініціалізувати зашифрованими нулями. Файл ключа замінює пароль, якщо використовується.';
+
+  @override
+  String get toolExpandBitLockerVolumeTitle => 'Розширити контейнер BitLocker';
+
+  @override
+  String get toolExpandBitLockerVolumeSubtitle =>
+      'Збільшує файл тому BitLocker або образ VHD/VHDX і розширює файлову систему NTFS';
+
+  @override
+  String get bitlockerToolsExpandNote =>
+      'Спершу створіть резервну копію контейнера. Ця дія переписує метадані BitLocker, щоб зашифрований том охоплював додане місце, тож перевірте результат на копії, перш ніж покладатися на нього. Працює з повністю зашифрованими томами BitLocker із Windows 7 або новішої — як необроблений файл тому, так і всередині фіксованого чи динамічного VHD або VHDX. Для образу диска введіть новий загальний розмір диска: віртуальний диск і його останній розділ (MBR або GPT) також збільшуються, тому розділ BitLocker має бути останнім. BitLocker To Go і томи із шифруванням під час запису (лише використаний простір) не підтримуються. NTFS можна розширити на місці (FAT і exFAT — ні). Додане місце за бажанням можна заповнити зашифрованими нулями. Розблокуйте паролем або 48-значним ключем відновлення.';
+
+  @override
+  String get bitlockerToolsPasswordLabel => 'Пароль або ключ відновлення';
+
+  @override
+  String get toolHiddenInExistingTitle => 'Додати прихований том';
+
+  @override
+  String get toolHiddenInExistingSubtitle =>
+      'Створити прихований том усередині наявного стандартного тому';
+
+  @override
+  String get vcToolsPickContainer => 'Вибрати контейнер';
+
+  @override
+  String get vcToolsNoContainer => 'Контейнер не вибрано';
+
+  @override
+  String get vcToolsPasswordLabel => 'Пароль тому';
+
+  @override
+  String get vcToolsPimLabel => 'PIM (необов’язково)';
+
+  @override
+  String get vcToolsNewSizeLabel => 'Новий розмір контейнера (МіБ)';
+
+  @override
+  String get vcToolsInitFreeSpace => 'Ініціалізувати новий простір';
+
+  @override
+  String get vcToolsInitFreeSpaceHint =>
+      'Заповнює доданий простір даними, зашифрованими ключем тому, щоб його не можна було відрізнити від решти. Вимкніть для швидкого розширення.';
+
+  @override
+  String get vcToolsExpandAction => 'Розширити том';
+
+  @override
+  String get vcToolsExpandNote =>
+      'Спочатку збільшується контейнер. Потім файлову систему всередині розширюють на додатковий простір, якщо це можливо без повторного форматування (NTFS, ext2/3/4). FAT і exFAT не можна розширити на місці; їхній додатковий простір залишається нерозподіленим. Спершу створіть резервну копію тому.';
+
+  @override
+  String get vcToolsExpandDone => 'Том розширено';
+
+  @override
+  String get vcToolsGrowFsToggle => 'Також розширити файлову систему';
+
+  @override
+  String get vcToolsGrowFsToggleHint =>
+      'Дає томам NTFS і ext2/3/4 змогу одразу використовувати додатковий простір без повторного форматування.';
+
+  @override
+  String get vcToolsGrowFsOnlyAction => 'Лише розширити файлову систему';
+
+  @override
+  String get vcToolsFsGrown =>
+      'Файлову систему розширено: додатковий простір готовий до використання.';
+
+  @override
+  String get vcToolsFsAlreadyFills => 'Файлова система вже займає весь том.';
+
+  @override
+  String get vcToolsFsUnsupported =>
+      'Цю файлову систему не можна розширити на місці (FAT і exFAT не можна). Додатковий простір залишиться нерозподіленим, доки том не буде відформатовано повторно; спершу збережіть його файли.';
+
+  @override
+  String get vcToolsFsBusy =>
+      'У томі все ще відкриті файли. Закрийте їх, заблокуйте том і повторіть спробу «Лише збільшити файлову систему».';
+
+  @override
+  String get vcToolsFsNeedsCheck =>
+      'Файлову систему позначено як таку, що потребує перевірки. Запустіть «Перевірити й виправити» для тому, а потім скористайтеся «Лише розширити файлову систему».';
+
+  @override
+  String get vcToolsFsFailed =>
+      'Не вдалося розширити файлову систему. Сам том збільшено; запустіть «Перевірити й виправити» перед використанням.';
+
+  @override
+  String get vcToolsAnalyzeAction => 'Перевірити вільне місце';
+
+  @override
+  String get vcToolsMaxHidden => 'Максимально можливий прихований том';
+
+  @override
+  String get vcToolsNoRoom =>
+      'Немає місця для прихованого тому: кінець зовнішнього тому використовується.';
+
+  @override
+  String get vcToolsHiddenSizeLabel => 'Розмір прихованого тому (МіБ)';
+
+  @override
+  String get vcToolsHiddenPasswordLabel => 'Пароль прихованого тому';
+
+  @override
+  String get vcToolsHiddenConfirmLabel => 'Підтвердьте пароль прихованого тому';
+
+  @override
+  String get vcToolsHiddenFsLabel => 'Файлова система прихованого тому';
+
+  @override
+  String get vcToolsQuickFormat => 'Швидке форматування';
+
+  @override
+  String get vcToolsCreateHiddenAction => 'Створити прихований том';
+
+  @override
+  String get vcToolsHiddenDone => 'Прихований том створено';
+
+  @override
+  String get vcToolsHiddenNote =>
+      'Прихований том займає вільне місце в кінці зовнішнього тому. Надалі монтуйте зовнішній том із захистом прихованого тому щоразу, коли записуєте на нього, інакше прихований том може бути перезаписано.';
+
+  @override
+  String get vcToolsPasswordsDiffer => 'Паролі не збігаються.';
+
+  @override
+  String get vcToolsInvalidSize => 'Введіть коректний розмір.';
+
+  @override
+  String get vcToolsCredentialsRequired =>
+      'Введіть пароль тому або додайте файл ключа.';
 
   @override
   String get readOnlyModeLabel => 'Режим лише для читання';
@@ -6879,6 +7036,13 @@ class AppLocalizationsUk extends AppLocalizations {
       'Відображати файли з крапкою на початку та системні папки';
 
   @override
+  String get showNoMediaFilesLabel => 'Show Media Hidden by .nomedia';
+
+  @override
+  String get showNoMediaFilesDesc =>
+      'Include media in folders containing a .nomedia file';
+
+  @override
   String get dontAskAgain => 'Більше не запитувати';
 
   @override
@@ -8699,7 +8863,7 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String get statusBadgeSubtitle =>
-      'Показує таймер слайд-шоу або індикатор статичного фото';
+      'Показує зворотний відлік слайд-шоу під час його відтворення';
 
   @override
   String get topBarActionsHeader => 'Дії верхньої панелі';
@@ -14274,11 +14438,11 @@ class AppLocalizationsUk extends AppLocalizations {
   String get vaultListingDetails => 'Деталі';
 
   @override
-  String get vaultListingSymbolicLinksTitle => 'Символічні посилання';
+  String get vaultListingSymbolicLinksTitle => 'Ярлики';
 
   @override
   String get vaultListingSymbolicLinksNote =>
-      'Символічне посилання вказує на інше місце. Тут його не відкривають і не переходять за ним; натисніть, щоб скопіювати ціль.';
+      'Торкніться ярлика, щоб відкрити його ціль. Відносні цілі залишаються в межах цього сховища; абсолютні або пошкоджені посилання відкрити неможливо.';
 
   @override
   String get vaultListingHiddenEntriesTitle => 'Записи, які не показано';
@@ -14440,4 +14604,233 @@ class AppLocalizationsUk extends AppLocalizations {
   String galleryPlaceHintCoordinates(int km) {
     return 'Немає міст у межах $km км: згруповано за координатами';
   }
+
+  @override
+  String get cryptomatorBackupKeyFilesTitle =>
+      'Резервне копіювання файлів ключів під час розблокування';
+
+  @override
+  String get cryptomatorBackupKeyFilesSubtitle =>
+      'Зберігає копію masterkey.cryptomator і vault.cryptomator поруч з оригіналами, як Cryptomator на комп’ютері. Діє з наступного розблокування. Сеанси лише для читання нічого не записують.';
+
+  @override
+  String get cryptomatorUpgradeTitle => 'Оновити формат сховища';
+
+  @override
+  String get cryptomatorUpgradeSubtitle =>
+      'Це сховище використовує старіший формат 7.';
+
+  @override
+  String get cryptomatorUpgradeLockFirst =>
+      'Заблокуйте сховище, щоб оновити його';
+
+  @override
+  String get cryptomatorUpgradeWarning =>
+      'Оновлення змінює формат цього сховища на 8. Це не можна скасувати, і версії Cryptomator, старіші за 1.6, більше не зможуть відкрити це сховище.\n\nКопія поточного файлу ключа зберігається як masterkey.cryptomator.<id>.bkup. Якщо інший застосунок синхронізує це сховище, спершу дочекайтеся завершення синхронізації.';
+
+  @override
+  String get cryptomatorUpgradeConfirm => 'Я розумію, що це не можна скасувати';
+
+  @override
+  String get cryptomatorUpgradeAction => 'Оновити';
+
+  @override
+  String get cryptomatorUpgradedMessage => 'Сховище оновлено до формату 8';
+
+  @override
+  String get cryptomatorUpgradeUnlockedError => 'Спершу заблокуйте сховище';
+
+  @override
+  String get cryptomatorConfigMissingWarning =>
+      'Файл vault.cryptomator відсутній. Якщо інший застосунок синхронізує це сховище, дочекайтеся завершення й спробуйте ще раз. Не оновлюйте.';
+
+  @override
+  String get cryptomatorUpgradeFailedMessage => 'Не вдалося оновити сховище';
+
+  @override
+  String get newSymbolicLinkTitle => 'Нове символічне посилання';
+
+  @override
+  String get symbolicLinkNameHint => 'Назва посилання';
+
+  @override
+  String get symbolicLinkTargetHint => 'Вказує на';
+
+  @override
+  String get symbolicLinkTargetHelper =>
+      'Зберігається точно так, як введено. Під час відкриття відносні цілі визначаються в межах цього сховища; абсолютні цілі не переходять за посиланням.';
+
+  @override
+  String get symbolicLinkTargetTooLong =>
+      'Ціль задовга (максимум 32 767 байтів)';
+
+  @override
+  String get symbolicLinkTargetInvalid =>
+      'Ціль не може містити нульовий символ';
+
+  @override
+  String get symbolicLinkNameTaken =>
+      'Файл, папка або посилання з такою назвою вже існує';
+
+  @override
+  String get deleteSymbolicLinkTitle => 'Видалити символічне посилання?';
+
+  @override
+  String deleteSymbolicLinkMessage(String name) {
+    return 'Видалити посилання «$name»? Видаляється лише посилання; те, на що воно вказує, не чіпається.';
+  }
+
+  @override
+  String get symbolicLinkRenameTitle => 'Перейменувати символічне посилання';
+
+  @override
+  String get symbolicLinkBrowseTarget => 'Переглянути сховище';
+
+  @override
+  String get symbolicLinkSelectTargetTitle => 'Вибрати ціль ярлика';
+
+  @override
+  String get symbolicLinkSelectThisFolder => 'Вибрати цю папку';
+
+  @override
+  String get symbolicLinkPickerLoadError => 'Не вдалося завантажити цю папку';
+
+  @override
+  String get shortcutBadge => 'Ярлик';
+
+  @override
+  String get emptyFolder => 'Ця папка порожня';
+
+  @override
+  String get symbolicLinkTargetHelperRelative =>
+      'Використовуйте відносний шлях у межах цього контейнера. Ціль може ще не існувати; перейменування або видалення посилання не змінює ціль.';
+
+  @override
+  String get symbolicLinkTargetOutsideVault =>
+      'Ціль має бути відносним шляхом у межах цього контейнера.';
+
+  @override
+  String get symbolicLinkPickerUnresolvable =>
+      'Звідси не вдається створити відносну ціль. Введіть ціль вручну.';
+
+  @override
+  String get editMetadataAction => 'Редагувати метадані';
+
+  @override
+  String get editTagsAction => 'Редагувати теги';
+
+  @override
+  String get editDateTimeAction => 'Редагувати дату й час';
+
+  @override
+  String get removeMetadataAction => 'Видалити метадані';
+
+  @override
+  String get metadataFormatsNote =>
+      'Теги, дати та видалення записуються в зображення JPEG, PNG і WebP. Інші файли отримують лише нову дату змінення.';
+
+  @override
+  String get metadataReadOnlyMessage => 'Це сховище лише для читання';
+
+  @override
+  String get tagsAddHint => 'Додайте теги, розділені комами';
+
+  @override
+  String get tagsNoneYet => 'Тегів ще немає';
+
+  @override
+  String get dateModeSet => 'Встановити';
+
+  @override
+  String get dateModeShift => 'Зсунути';
+
+  @override
+  String get dateModeFromModified => 'З дати змінення';
+
+  @override
+  String get dateModeFromName => 'З імені файлу';
+
+  @override
+  String get dateShiftLater => 'Пізніше';
+
+  @override
+  String get dateShiftEarlier => 'Раніше';
+
+  @override
+  String get dateDaysLabel => 'Дні';
+
+  @override
+  String get dateHoursLabel => 'Години';
+
+  @override
+  String get dateMinutesLabel => 'Хвилини';
+
+  @override
+  String get dateAlsoSetModified => 'Також встановити дату змінення файлу';
+
+  @override
+  String dateFromNameMatches(int matched, int total) {
+    return '$matched із $total імен файлів містять дату';
+  }
+
+  @override
+  String get stripExifLabel => 'Exif (камера, дата, місце)';
+
+  @override
+  String get stripXmpLabel => 'XMP (теги, оцінка, дані редагування)';
+
+  @override
+  String get stripIptcLabel => 'IPTC / Photoshop (підписи, авторство)';
+
+  @override
+  String get stripCommentsLabel => 'Коментарі';
+
+  @override
+  String get stripIccLabel => 'Профіль кольору (може змінити кольори)';
+
+  @override
+  String get stripKeepOrientationLabel => 'Зберегти орієнтацію';
+
+  @override
+  String get stripKeepOrientationDesc =>
+      'Без цього фото, зняті боком, можуть відображатися повернутими';
+
+  @override
+  String get stripWarning => 'Це перезаписує файли й не може бути скасоване.';
+
+  @override
+  String metadataProgress(int done, int total) {
+    return 'Оновлення $done з $total';
+  }
+
+  @override
+  String metadataResultUpdated(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Оновлено файлів: $count',
+      one: 'Оновлено 1 файл',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get metadataResultUnchanged => 'Нічого змінювати';
+
+  @override
+  String metadataResultSkipped(int count) {
+    return 'Пропущено: $count (не підтримується)';
+  }
+
+  @override
+  String metadataResultFailed(int count) {
+    return 'Не вдалося: $count';
+  }
+
+  @override
+  String get showNoMediaFoldersLabel => 'Показувати папки .nomedia';
+
+  @override
+  String get showNoMediaFoldersDesc =>
+      'Включити папки з файлом .nomedia, які застосунки галереї зазвичай пропускають';
 }

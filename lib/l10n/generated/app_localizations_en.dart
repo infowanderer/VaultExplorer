@@ -2274,6 +2274,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get gocryptfsCipherLabel => 'Content Cipher';
 
   @override
+  String get gocryptfsNamesRandomIvOption => 'Random per folder (default)';
+
+  @override
+  String get gocryptfsNamesDeterministicOption =>
+      'Deterministic (for synced folders)';
+
+  @override
   String get cryfsCipherLabel => 'Content Cipher';
 
   @override
@@ -2446,6 +2453,156 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get keepCurrentOption => 'Keep current';
+
+  @override
+  String get toolExpandVolumeTitle => 'Expand VeraCrypt volume';
+
+  @override
+  String get toolExpandVolumeSubtitle =>
+      'Make a standard volume larger, like the desktop Volume Expander';
+
+  @override
+  String get toolExpandLuksVolumeTitle => 'Expand LUKS container';
+
+  @override
+  String get toolExpandLuksVolumeSubtitle =>
+      'Grow LUKS1 and LUKS2 containers, including fixed-size LUKS2 metadata';
+
+  @override
+  String get luksToolsExpandNote =>
+      'Back up the container first. Supports LUKS1 and LUKS2. NTFS and ext2/3/4 filesystems can be expanded in place (FAT and exFAT cannot). The added space can be initialized with encrypted zeros. A keyfile replaces the password if used.';
+
+  @override
+  String get toolExpandBitLockerVolumeTitle => 'Expand BitLocker container';
+
+  @override
+  String get toolExpandBitLockerVolumeSubtitle =>
+      'Grow a BitLocker volume file or VHD/VHDX image and extend its NTFS file system';
+
+  @override
+  String get bitlockerToolsExpandNote =>
+      'Back up the container first. This rewrites BitLocker\'s metadata so the encrypted volume covers the added space, so check the result on a copy before relying on it. Works on fully encrypted BitLocker volumes from Windows 7 or later, either as a raw volume file or inside a fixed or dynamic VHD or VHDX. For a disk image enter the new total disk size: the virtual disk and its last partition (MBR or GPT) are enlarged too, so the BitLocker partition must be the last one. BitLocker To Go and encrypt-on-write (used-space-only) volumes are not supported. NTFS can be expanded in place (FAT and exFAT cannot). The added space can optionally be filled with encrypted zeros. Unlock with the password or the 48-digit recovery key.';
+
+  @override
+  String get bitlockerToolsPasswordLabel => 'Password or recovery key';
+
+  @override
+  String get toolHiddenInExistingTitle => 'Add hidden volume';
+
+  @override
+  String get toolHiddenInExistingSubtitle =>
+      'Create a hidden volume inside an existing standard volume';
+
+  @override
+  String get vcToolsPickContainer => 'Choose container';
+
+  @override
+  String get vcToolsNoContainer => 'No container selected';
+
+  @override
+  String get vcToolsPasswordLabel => 'Volume password';
+
+  @override
+  String get vcToolsPimLabel => 'PIM (optional)';
+
+  @override
+  String get vcToolsNewSizeLabel => 'New container size (MiB)';
+
+  @override
+  String get vcToolsInitFreeSpace => 'Initialize new space';
+
+  @override
+  String get vcToolsInitFreeSpaceHint =>
+      'Fills the added space with data encrypted under the volume key so it cannot be told apart from the rest. Turn off for a quick expand.';
+
+  @override
+  String get vcToolsExpandAction => 'Expand volume';
+
+  @override
+  String get vcToolsExpandNote =>
+      'The container is enlarged first. Then the file system inside is grown into the added space where that is possible without reformatting (NTFS, ext2/3/4). FAT and exFAT cannot be grown in place; their added space stays unallocated. Back up the volume first.';
+
+  @override
+  String get vcToolsExpandDone => 'Volume expanded';
+
+  @override
+  String get vcToolsGrowFsToggle => 'Also grow the file system';
+
+  @override
+  String get vcToolsGrowFsToggleHint =>
+      'Lets NTFS and ext2/3/4 volumes use the added space right away, without reformatting.';
+
+  @override
+  String get vcToolsGrowFsOnlyAction => 'Only grow the file system';
+
+  @override
+  String get vcToolsFsGrown =>
+      'File system grown: the added space is ready to use.';
+
+  @override
+  String get vcToolsFsAlreadyFills =>
+      'The file system already fills the volume.';
+
+  @override
+  String get vcToolsFsUnsupported =>
+      'This file system cannot be grown in place (FAT and exFAT cannot). The added space stays unallocated until the volume is reformatted; back up its files first.';
+
+  @override
+  String get vcToolsFsBusy =>
+      'Files are still open in the volume. Close them, lock the volume, then retry “Only grow the file system”.';
+
+  @override
+  String get vcToolsFsNeedsCheck =>
+      'The file system is marked as needing a check. Run Check & Repair on the volume, then use “Only grow the file system”.';
+
+  @override
+  String get vcToolsFsFailed =>
+      'The file system could not be grown. The volume itself is expanded; run Check & Repair on it before using it.';
+
+  @override
+  String get vcToolsAnalyzeAction => 'Check free space';
+
+  @override
+  String get vcToolsMaxHidden => 'Largest possible hidden volume';
+
+  @override
+  String get vcToolsNoRoom =>
+      'There is no room for a hidden volume: the end of the outer volume is in use.';
+
+  @override
+  String get vcToolsHiddenSizeLabel => 'Hidden volume size (MiB)';
+
+  @override
+  String get vcToolsHiddenPasswordLabel => 'Hidden volume password';
+
+  @override
+  String get vcToolsHiddenConfirmLabel => 'Confirm hidden volume password';
+
+  @override
+  String get vcToolsHiddenFsLabel => 'Hidden volume file system';
+
+  @override
+  String get vcToolsQuickFormat => 'Quick format';
+
+  @override
+  String get vcToolsCreateHiddenAction => 'Create hidden volume';
+
+  @override
+  String get vcToolsHiddenDone => 'Hidden volume created';
+
+  @override
+  String get vcToolsHiddenNote =>
+      'The hidden volume takes the free space at the end of the outer volume. Afterwards, mount the outer volume with hidden volume protection whenever you write to it, or the hidden volume can be overwritten.';
+
+  @override
+  String get vcToolsPasswordsDiffer => 'The passwords do not match.';
+
+  @override
+  String get vcToolsInvalidSize => 'Enter a valid size.';
+
+  @override
+  String get vcToolsCredentialsRequired =>
+      'Enter the volume password or add a keyfile.';
 
   @override
   String get readOnlyModeLabel => 'Read-only mode';
@@ -6729,6 +6886,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get showHiddenFilesDesc => 'Display dotfiles and system folders';
 
   @override
+  String get showNoMediaFilesLabel => 'Show Media Hidden by .nomedia';
+
+  @override
+  String get showNoMediaFilesDesc =>
+      'Include media in folders containing a .nomedia file';
+
+  @override
   String get dontAskAgain => 'Don\'t ask again';
 
   @override
@@ -8506,7 +8670,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get statusBadgeSubtitle =>
-      'Shows slideshow timer or static photo indicator';
+      'Shows the slideshow countdown while a slideshow is playing';
 
   @override
   String get topBarActionsHeader => 'Top Bar Actions';
@@ -13955,11 +14119,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get vaultListingDetails => 'Details';
 
   @override
-  String get vaultListingSymbolicLinksTitle => 'Symbolic links';
+  String get vaultListingSymbolicLinksTitle => 'Shortcuts';
 
   @override
   String get vaultListingSymbolicLinksNote =>
-      'A symbolic link points somewhere else. It is never opened or followed here; tap one to copy where it points.';
+      'Shortcuts open their targets when tapped. Relative targets stay inside this vault; absolute or broken targets cannot be opened.';
 
   @override
   String get vaultListingHiddenEntriesTitle => 'Entries that are not shown';
@@ -14121,4 +14285,232 @@ class AppLocalizationsEn extends AppLocalizations {
   String galleryPlaceHintCoordinates(int km) {
     return 'No city within $km km: grouped by coordinates';
   }
+
+  @override
+  String get cryptomatorBackupKeyFilesTitle =>
+      'Back up key files when unlocking';
+
+  @override
+  String get cryptomatorBackupKeyFilesSubtitle =>
+      'Keeps a copy of masterkey.cryptomator and vault.cryptomator next to the originals, like Cryptomator on desktop. Applies from the next unlock. Read-only sessions never write.';
+
+  @override
+  String get cryptomatorUpgradeTitle => 'Upgrade vault format';
+
+  @override
+  String get cryptomatorUpgradeSubtitle =>
+      'This vault uses the older format 7.';
+
+  @override
+  String get cryptomatorUpgradeLockFirst => 'Lock the vault to upgrade it';
+
+  @override
+  String get cryptomatorUpgradeWarning =>
+      'Upgrading changes this vault to format 8. It cannot be undone, and Cryptomator versions older than 1.6 will no longer be able to open the vault afterwards.\n\nA copy of the current key file is kept as masterkey.cryptomator.<id>.bkup. If another app syncs this vault, let it finish syncing first.';
+
+  @override
+  String get cryptomatorUpgradeConfirm => 'I understand this can\'t be undone';
+
+  @override
+  String get cryptomatorUpgradeAction => 'Upgrade';
+
+  @override
+  String get cryptomatorUpgradedMessage => 'Vault upgraded to format 8';
+
+  @override
+  String get cryptomatorUpgradeUnlockedError => 'Lock the vault first';
+
+  @override
+  String get cryptomatorConfigMissingWarning =>
+      'vault.cryptomator is missing. If another app syncs this vault, wait for it to finish, then try again. Do not upgrade.';
+
+  @override
+  String get cryptomatorUpgradeFailedMessage => 'Could not upgrade the vault';
+
+  @override
+  String get newSymbolicLinkTitle => 'New symbolic link';
+
+  @override
+  String get symbolicLinkNameHint => 'Link name';
+
+  @override
+  String get symbolicLinkTargetHint => 'Points to';
+
+  @override
+  String get symbolicLinkTargetHelper =>
+      'Stored exactly as written. Relative targets are resolved inside this vault when opened; absolute targets are not followed.';
+
+  @override
+  String get symbolicLinkTargetTooLong =>
+      'Target is too long (maximum 32,767 bytes)';
+
+  @override
+  String get symbolicLinkTargetInvalid =>
+      'Target can\'t contain a null character';
+
+  @override
+  String get symbolicLinkNameTaken =>
+      'A file, folder or link with this name already exists';
+
+  @override
+  String get deleteSymbolicLinkTitle => 'Delete symbolic link?';
+
+  @override
+  String deleteSymbolicLinkMessage(String name) {
+    return 'Delete the link \"$name\"? Only the link is removed; what it points to is not touched.';
+  }
+
+  @override
+  String get symbolicLinkRenameTitle => 'Rename symbolic link';
+
+  @override
+  String get symbolicLinkBrowseTarget => 'Browse vault';
+
+  @override
+  String get symbolicLinkSelectTargetTitle => 'Choose shortcut target';
+
+  @override
+  String get symbolicLinkSelectThisFolder => 'Select this folder';
+
+  @override
+  String get symbolicLinkPickerLoadError => 'Couldn\'t load this folder';
+
+  @override
+  String get shortcutBadge => 'Shortcut';
+
+  @override
+  String get emptyFolder => 'This folder is empty';
+
+  @override
+  String get symbolicLinkTargetHelperRelative =>
+      'Use a relative path inside this container. The target may be missing; renaming or deleting the link does not change the target.';
+
+  @override
+  String get symbolicLinkTargetOutsideVault =>
+      'Target must be a relative path that stays inside this container.';
+
+  @override
+  String get symbolicLinkPickerUnresolvable =>
+      'Can\'t build a relative target from here. Type the target instead.';
+
+  @override
+  String get editMetadataAction => 'Edit metadata';
+
+  @override
+  String get editTagsAction => 'Edit tags';
+
+  @override
+  String get editDateTimeAction => 'Edit date & time';
+
+  @override
+  String get removeMetadataAction => 'Remove metadata';
+
+  @override
+  String get metadataFormatsNote =>
+      'Tags, dates and removal are written into JPEG, PNG and WebP images. Other files only get a new modified date.';
+
+  @override
+  String get metadataReadOnlyMessage => 'This vault is read-only';
+
+  @override
+  String get tagsAddHint => 'Add tags, separated by commas';
+
+  @override
+  String get tagsNoneYet => 'No tags yet';
+
+  @override
+  String get dateModeSet => 'Set';
+
+  @override
+  String get dateModeShift => 'Shift';
+
+  @override
+  String get dateModeFromModified => 'From modified date';
+
+  @override
+  String get dateModeFromName => 'From file name';
+
+  @override
+  String get dateShiftLater => 'Later';
+
+  @override
+  String get dateShiftEarlier => 'Earlier';
+
+  @override
+  String get dateDaysLabel => 'Days';
+
+  @override
+  String get dateHoursLabel => 'Hours';
+
+  @override
+  String get dateMinutesLabel => 'Minutes';
+
+  @override
+  String get dateAlsoSetModified => 'Also set the file\'s modified date';
+
+  @override
+  String dateFromNameMatches(int matched, int total) {
+    return '$matched of $total file names contain a date';
+  }
+
+  @override
+  String get stripExifLabel => 'Exif (camera, date, location)';
+
+  @override
+  String get stripXmpLabel => 'XMP (tags, rating, edit data)';
+
+  @override
+  String get stripIptcLabel => 'IPTC / Photoshop (captions, credits)';
+
+  @override
+  String get stripCommentsLabel => 'Comments';
+
+  @override
+  String get stripIccLabel => 'Colour profile (may change colours)';
+
+  @override
+  String get stripKeepOrientationLabel => 'Keep orientation';
+
+  @override
+  String get stripKeepOrientationDesc =>
+      'Without it, photos taken sideways may show rotated';
+
+  @override
+  String get stripWarning => 'This rewrites the files and cannot be undone.';
+
+  @override
+  String metadataProgress(int done, int total) {
+    return 'Updating $done of $total';
+  }
+
+  @override
+  String metadataResultUpdated(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count files updated',
+      one: '1 file updated',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get metadataResultUnchanged => 'Nothing needed changing';
+
+  @override
+  String metadataResultSkipped(int count) {
+    return '$count skipped (not supported)';
+  }
+
+  @override
+  String metadataResultFailed(int count) {
+    return '$count failed';
+  }
+
+  @override
+  String get showNoMediaFoldersLabel => 'Show .nomedia folders';
+
+  @override
+  String get showNoMediaFoldersDesc =>
+      'Include folders marked with a .nomedia file, which gallery apps normally skip';
 }

@@ -2155,6 +2155,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get gocryptfsCipherLabel => '内容加密算法';
 
   @override
+  String get gocryptfsNamesRandomIvOption => '按文件夹随机（默认）';
+
+  @override
+  String get gocryptfsNamesDeterministicOption => '确定性（适用于同步文件夹）';
+
+  @override
   String get cryfsCipherLabel => '内容加密算法';
 
   @override
@@ -2314,6 +2320,147 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get keepCurrentOption => '保持当前';
+
+  @override
+  String get toolExpandVolumeTitle => '扩展 VeraCrypt 卷';
+
+  @override
+  String get toolExpandVolumeSubtitle => '增大标准卷的容量，类似于桌面版卷扩展器';
+
+  @override
+  String get toolExpandLuksVolumeTitle => '扩展 LUKS 容器';
+
+  @override
+  String get toolExpandLuksVolumeSubtitle =>
+      '扩大 LUKS1 和 LUKS2 容器，包括固定大小的 LUKS2 元数据';
+
+  @override
+  String get luksToolsExpandNote =>
+      '请先备份容器。支持 LUKS1 和 LUKS2。NTFS 和 ext2/3/4 文件系统支持就地扩容（FAT 和 exFAT 不支持）。新增空间可使用加密零进行初始化。如果使用密钥文件，它将替代密码。';
+
+  @override
+  String get toolExpandBitLockerVolumeTitle => '扩展 BitLocker 容器';
+
+  @override
+  String get toolExpandBitLockerVolumeSubtitle =>
+      '扩大 BitLocker 卷文件或 VHD/VHDX 映像，并扩展其中的 NTFS 文件系统';
+
+  @override
+  String get bitlockerToolsExpandNote =>
+      '请先备份容器。此操作会重写 BitLocker 元数据，使加密卷覆盖新增空间，因此在依赖结果之前请先在副本上验证。适用于 Windows 7 或更高版本、已完全加密的 BitLocker 卷，可以是原始卷文件，也可以位于固定或动态的 VHD、VHDX 中。对于磁盘映像，请输入磁盘新的总大小：虚拟磁盘及其最后一个分区（MBR 或 GPT）也会一并扩展，因此 BitLocker 分区必须是最后一个分区。不支持 BitLocker To Go 以及写入时加密（仅已用空间）的卷。NTFS 可原地扩展（FAT 和 exFAT 不行）。可选择用加密的零填充新增空间。使用密码或 48 位恢复密钥解锁。';
+
+  @override
+  String get bitlockerToolsPasswordLabel => '密码或恢复密钥';
+
+  @override
+  String get toolHiddenInExistingTitle => '添加隐藏卷';
+
+  @override
+  String get toolHiddenInExistingSubtitle => '在现有标准卷内创建隐藏卷';
+
+  @override
+  String get vcToolsPickContainer => '选择容器';
+
+  @override
+  String get vcToolsNoContainer => '未选择容器';
+
+  @override
+  String get vcToolsPasswordLabel => '卷密码';
+
+  @override
+  String get vcToolsPimLabel => 'PIM（可选）';
+
+  @override
+  String get vcToolsNewSizeLabel => '新容器大小 (MiB)';
+
+  @override
+  String get vcToolsInitFreeSpace => '初始化新空间';
+
+  @override
+  String get vcToolsInitFreeSpaceHint =>
+      '使用卷密钥加密的数据填充新增空间，使其与其余部分无法区分。如需快速扩展请关闭。';
+
+  @override
+  String get vcToolsExpandAction => '扩展卷';
+
+  @override
+  String get vcToolsExpandNote =>
+      '首先扩大容器。然后，在无需重新格式化即可实现时（NTFS、ext2/3/4），将内部文件系统扩展到新增空间。FAT 和 exFAT 无法就地扩展，新增空间将保持未分配状态。请先备份该卷。';
+
+  @override
+  String get vcToolsExpandDone => '卷已扩展';
+
+  @override
+  String get vcToolsGrowFsToggle => '同时扩展文件系统';
+
+  @override
+  String get vcToolsGrowFsToggleHint => '让 NTFS 和 ext2/3/4 卷无需重新格式化即可立即使用新增空间。';
+
+  @override
+  String get vcToolsGrowFsOnlyAction => '仅扩展文件系统';
+
+  @override
+  String get vcToolsFsGrown => '文件系统已扩展：新增空间可以使用了。';
+
+  @override
+  String get vcToolsFsAlreadyFills => '文件系统已占满整个卷。';
+
+  @override
+  String get vcToolsFsUnsupported =>
+      '此文件系统无法就地扩展（FAT 和 exFAT 不支持）。新增空间将保持未分配，直到重新格式化该卷；请先备份其中的文件。';
+
+  @override
+  String get vcToolsFsBusy => '卷中仍有文件处于打开状态。请将其关闭、锁定卷，然后重试“仅扩展文件系统”。';
+
+  @override
+  String get vcToolsFsNeedsCheck =>
+      '文件系统被标记为需要检查。请先对该卷运行“检查与修复”，然后使用“仅扩展文件系统”。';
+
+  @override
+  String get vcToolsFsFailed => '无法扩展文件系统。卷本身已扩大；使用前请运行“检查与修复”。';
+
+  @override
+  String get vcToolsAnalyzeAction => '检查可用空间';
+
+  @override
+  String get vcToolsMaxHidden => '最大可能隐藏卷';
+
+  @override
+  String get vcToolsNoRoom => '没有空间容纳隐藏卷：外层卷末尾已被使用。';
+
+  @override
+  String get vcToolsHiddenSizeLabel => '隐藏卷大小 (MiB)';
+
+  @override
+  String get vcToolsHiddenPasswordLabel => '隐藏卷密码';
+
+  @override
+  String get vcToolsHiddenConfirmLabel => '确认隐藏卷密码';
+
+  @override
+  String get vcToolsHiddenFsLabel => '隐藏卷文件系统';
+
+  @override
+  String get vcToolsQuickFormat => '快速格式化';
+
+  @override
+  String get vcToolsCreateHiddenAction => '创建隐藏卷';
+
+  @override
+  String get vcToolsHiddenDone => '隐藏卷已创建';
+
+  @override
+  String get vcToolsHiddenNote =>
+      '隐藏卷占用外层卷末尾的可用空间。之后，每当向外层卷写入数据时，请务必启用隐藏卷保护进行挂载，否则隐藏卷可能会被覆盖。';
+
+  @override
+  String get vcToolsPasswordsDiffer => '密码不匹配。';
+
+  @override
+  String get vcToolsInvalidSize => '请输入有效的大小。';
+
+  @override
+  String get vcToolsCredentialsRequired => '请输入卷密码或添加密钥文件。';
 
   @override
   String get readOnlyModeLabel => '只读模式';
@@ -6415,6 +6562,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get showHiddenFilesDesc => '显示点文件和系统文件夹';
 
   @override
+  String get showNoMediaFilesLabel => 'Show Media Hidden by .nomedia';
+
+  @override
+  String get showNoMediaFilesDesc =>
+      'Include media in folders containing a .nomedia file';
+
+  @override
   String get dontAskAgain => '不再询问';
 
   @override
@@ -8079,7 +8233,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get statusBadgeTitle => '状态徽章';
 
   @override
-  String get statusBadgeSubtitle => '显示幻灯片计时器或静态照片指示器';
+  String get statusBadgeSubtitle => '幻灯片播放时显示倒计时';
 
   @override
   String get topBarActionsHeader => '顶部栏操作';
@@ -13185,11 +13339,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get vaultListingDetails => '详情';
 
   @override
-  String get vaultListingSymbolicLinksTitle => '符号链接';
+  String get vaultListingSymbolicLinksTitle => '快捷方式';
 
   @override
   String get vaultListingSymbolicLinksNote =>
-      '符号链接指向其他位置。此处不会打开或跟随链接；点按可复制其目标位置。';
+      '点按快捷方式即可打开目标。相对目标仅在此保险库内解析；绝对路径或失效的链接无法打开。';
 
   @override
   String get vaultListingHiddenEntriesTitle => '未显示的条目';
@@ -13350,4 +13504,222 @@ class AppLocalizationsZh extends AppLocalizations {
   String galleryPlaceHintCoordinates(int km) {
     return '$km 公里内没有城市：按坐标分组';
   }
+
+  @override
+  String get cryptomatorBackupKeyFilesTitle => '解锁时备份密钥文件';
+
+  @override
+  String get cryptomatorBackupKeyFilesSubtitle =>
+      '与桌面版 Cryptomator 一样，在原文件旁保留 masterkey.cryptomator 和 vault.cryptomator 的副本。从下次解锁起生效。只读会话不会写入。';
+
+  @override
+  String get cryptomatorUpgradeTitle => '升级保险库格式';
+
+  @override
+  String get cryptomatorUpgradeSubtitle => '此保险库使用较旧的格式 7。';
+
+  @override
+  String get cryptomatorUpgradeLockFirst => '请先锁定保险库再升级';
+
+  @override
+  String get cryptomatorUpgradeWarning =>
+      '升级会将此保险库更改为格式 8。此操作无法撤销，之后低于 1.6 的 Cryptomator 版本将无法再打开该保险库。\n\n当前密钥文件的副本会以 masterkey.cryptomator.<id>.bkup 的名称保留。如果有其他应用正在同步此保险库，请先等待同步完成。';
+
+  @override
+  String get cryptomatorUpgradeConfirm => '我了解此操作无法撤销';
+
+  @override
+  String get cryptomatorUpgradeAction => '升级';
+
+  @override
+  String get cryptomatorUpgradedMessage => '保险库已升级到格式 8';
+
+  @override
+  String get cryptomatorUpgradeUnlockedError => '请先锁定保险库';
+
+  @override
+  String get cryptomatorConfigMissingWarning =>
+      '缺少 vault.cryptomator。如果有其他应用正在同步此保险库，请等待同步完成后再试。请勿升级。';
+
+  @override
+  String get cryptomatorUpgradeFailedMessage => '无法升级保险库';
+
+  @override
+  String get newSymbolicLinkTitle => '新建符号链接';
+
+  @override
+  String get symbolicLinkNameHint => '链接名称';
+
+  @override
+  String get symbolicLinkTargetHint => '指向';
+
+  @override
+  String get symbolicLinkTargetHelper =>
+      '目标会按输入的原样保存。打开时，相对目标会在此保险库内解析；不会跟随绝对目标。';
+
+  @override
+  String get symbolicLinkTargetTooLong => '目标过长（最多 32,767 字节）';
+
+  @override
+  String get symbolicLinkTargetInvalid => '目标不能包含空字符';
+
+  @override
+  String get symbolicLinkNameTaken => '已存在同名的文件、文件夹或链接';
+
+  @override
+  String get deleteSymbolicLinkTitle => '删除符号链接？';
+
+  @override
+  String deleteSymbolicLinkMessage(String name) {
+    return '删除链接“$name”？只会删除链接本身，不会影响它所指向的内容。';
+  }
+
+  @override
+  String get symbolicLinkRenameTitle => '重命名符号链接';
+
+  @override
+  String get symbolicLinkBrowseTarget => '浏览保险库';
+
+  @override
+  String get symbolicLinkSelectTargetTitle => '选择快捷方式目标';
+
+  @override
+  String get symbolicLinkSelectThisFolder => '选择此文件夹';
+
+  @override
+  String get symbolicLinkPickerLoadError => '无法加载此文件夹';
+
+  @override
+  String get shortcutBadge => '快捷方式';
+
+  @override
+  String get emptyFolder => '此文件夹为空';
+
+  @override
+  String get symbolicLinkTargetHelperRelative =>
+      '请使用此容器内的相对路径。目标可以暂时不存在；重命名或删除链接不会更改目标。';
+
+  @override
+  String get symbolicLinkTargetOutsideVault => '目标必须是保留在此容器内的相对路径。';
+
+  @override
+  String get symbolicLinkPickerUnresolvable => '无法从此处生成相对目标。请手动输入目标。';
+
+  @override
+  String get editMetadataAction => '编辑元数据';
+
+  @override
+  String get editTagsAction => '编辑标签';
+
+  @override
+  String get editDateTimeAction => '编辑日期和时间';
+
+  @override
+  String get removeMetadataAction => '移除元数据';
+
+  @override
+  String get metadataFormatsNote =>
+      '标签、日期和移除操作会写入 JPEG、PNG 和 WebP 图片。其他文件仅更新修改日期。';
+
+  @override
+  String get metadataReadOnlyMessage => '此保险库为只读';
+
+  @override
+  String get tagsAddHint => '添加标签，以逗号分隔';
+
+  @override
+  String get tagsNoneYet => '暂无标签';
+
+  @override
+  String get dateModeSet => '设置';
+
+  @override
+  String get dateModeShift => '偏移';
+
+  @override
+  String get dateModeFromModified => '来自修改日期';
+
+  @override
+  String get dateModeFromName => '来自文件名';
+
+  @override
+  String get dateShiftLater => '推后';
+
+  @override
+  String get dateShiftEarlier => '提前';
+
+  @override
+  String get dateDaysLabel => '天';
+
+  @override
+  String get dateHoursLabel => '小时';
+
+  @override
+  String get dateMinutesLabel => '分钟';
+
+  @override
+  String get dateAlsoSetModified => '同时设置文件的修改日期';
+
+  @override
+  String dateFromNameMatches(int matched, int total) {
+    return '$total 个文件名中有 $matched 个包含日期';
+  }
+
+  @override
+  String get stripExifLabel => 'Exif（相机、日期、位置）';
+
+  @override
+  String get stripXmpLabel => 'XMP（标签、评分、编辑数据）';
+
+  @override
+  String get stripIptcLabel => 'IPTC / Photoshop（说明、署名）';
+
+  @override
+  String get stripCommentsLabel => '注释';
+
+  @override
+  String get stripIccLabel => '色彩配置文件（可能改变颜色）';
+
+  @override
+  String get stripKeepOrientationLabel => '保留方向';
+
+  @override
+  String get stripKeepOrientationDesc => '不保留时，横向拍摄的照片可能显示为旋转状态';
+
+  @override
+  String get stripWarning => '此操作会重写文件，且无法撤销。';
+
+  @override
+  String metadataProgress(int done, int total) {
+    return '正在更新 $done/$total';
+  }
+
+  @override
+  String metadataResultUpdated(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '已更新 $count 个文件',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get metadataResultUnchanged => '无需更改';
+
+  @override
+  String metadataResultSkipped(int count) {
+    return '已跳过 $count 个（不支持）';
+  }
+
+  @override
+  String metadataResultFailed(int count) {
+    return '$count 个失败';
+  }
+
+  @override
+  String get showNoMediaFoldersLabel => '显示 .nomedia 文件夹';
+
+  @override
+  String get showNoMediaFoldersDesc => '包含带有 .nomedia 文件的文件夹（图库应用通常会跳过这些文件夹）';
 }

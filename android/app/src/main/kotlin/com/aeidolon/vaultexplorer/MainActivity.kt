@@ -55,6 +55,7 @@ import com.aeidolon.vaultexplorer.handlers.ImportExportHandlers
 import com.aeidolon.vaultexplorer.handlers.LogExportHandlers
 import com.aeidolon.vaultexplorer.handlers.RepairHandlers
 import com.aeidolon.vaultexplorer.handlers.HeaderBackupHandlers
+import com.aeidolon.vaultexplorer.handlers.VeraCryptToolsHandlers
 import com.aeidolon.vaultexplorer.handlers.SecureStorageHandlers
 import com.aeidolon.vaultexplorer.handlers.SingleFileCryptoHandlers
 import com.aeidolon.vaultexplorer.handlers.SplitContainerMountHandlers
@@ -145,6 +146,7 @@ private object ChannelMethods {
     const val READ_VAULT_SYMLINK        = "readVaultSymlink"
     const val GET_HIDDEN_ENTRY_COUNT    = "getHiddenEntryCount"
     const val CREATE_DIRECTORY          = "createDirectory"
+    const val CREATE_VAULT_SYMLINK      = "createVaultSymlink"
     const val RENAME_FILE               = "renameFile"
     const val COPY_FILE                 = "copyFile"
     const val CANCEL_COPY               = "cancelCopy"
@@ -225,6 +227,10 @@ private object ChannelMethods {
     const val CREATE_CRYPTOMATOR_VAULT  = "createCryptomatorVault"
     const val CHANGE_CRYPTOMATOR_VAULT_PASSWORD = "changeCryptomatorVaultPassword"
     const val MIGRATE_CRYPTOMATOR_VAULT = "migrateCryptomatorVault"
+    const val PROBE_CRYPTOMATOR_VAULT = "probeCryptomatorVault"
+    const val GET_CRYPTOMATOR_KEY_FILE_BACKUP = "getCryptomatorKeyFileBackup"
+    const val SET_CRYPTOMATOR_KEY_FILE_BACKUP = "setCryptomatorKeyFileBackup"
+    const val CLEAR_VAULT_OPEN_PREFERENCES = "clearVaultOpenPreferences"
     const val PICK_GOCRYPTFS_VAULT      = "pickGocryptfsVault"
     const val UNLOCK_GOCRYPTFS_VAULT    = "unlockGocryptfsVault"
     const val CREATE_GOCRYPTFS_VAULT    = "createGocryptfsVault"
@@ -287,6 +293,14 @@ private object ChannelMethods {
     const val REPAIR_FOLDER_VAULT = "repairFolderVault"
     const val EXPORT_CONTAINER_HEADER = "exportContainerHeader"
     const val RESTORE_CONTAINER_HEADER_REGION = "restoreContainerHeaderRegion"
+    const val EXPAND_VERACRYPT_CONTAINER = "expandVeraCryptContainer"
+    const val EXPAND_LUKS_CONTAINER = "expandLuksContainer"
+    const val GROW_VERACRYPT_FILE_SYSTEM = "growVeraCryptFileSystem"
+    const val GROW_LUKS_FILE_SYSTEM = "growLuksFileSystem"
+    const val EXPAND_BITLOCKER_CONTAINER = "expandBitLockerContainer"
+    const val GROW_BITLOCKER_FILE_SYSTEM = "growBitLockerFileSystem"
+    const val ANALYZE_HIDDEN_VOLUME_HOST = "analyzeHiddenVolumeHost"
+    const val CREATE_HIDDEN_VOLUME_IN_EXISTING = "createHiddenVolumeInExisting"
     const val RESOLVE_FOLDER_VAULT_CONFIG_FILE = "resolveFolderVaultConfigFile"
     const val RESTORE_FOLDER_VAULT_CONFIG = "restoreFolderVaultConfig"
     const val OPEN_LOCAL_FILE_WITH_APP = "openLocalFileWithApp"
@@ -424,6 +438,7 @@ open class MainActivity : FlutterFragmentActivity() {
     private val automationSettingsHandlers = AutomationSettingsHandlers(this)
     private val repairHandlers = RepairHandlers(this, ioExecutor)
     private val headerBackupHandlers = HeaderBackupHandlers(this, ioExecutor, nativeOps)
+    private val veraCryptToolsHandlers = VeraCryptToolsHandlers(this, ioExecutor, nativeOps)
     private val pdfViewerHandlers = com.aeidolon.vaultexplorer.pdf.PdfViewerHandlers(this, pdfExecutor)
     private val archiveHandlers = com.aeidolon.vaultexplorer.handlers.ArchiveHandlers(this, ioExecutor, nativeOps)
     private val bookReaderHandlers = com.aeidolon.vaultexplorer.handlers.BookReaderHandlers(
@@ -673,7 +688,12 @@ open class MainActivity : FlutterFragmentActivity() {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) systemHandlers.sanitizeClipboard()
+        if (hasFocus) {
+            systemHandlers.sanitizeClipboard()
+            if (systemHandlers.userWantsSecureScreen) {
+                privacyCurtain.armPendingReveal()
+            }
+        }
     }
 
     private fun resizeExecutorPools() {
@@ -1120,7 +1140,7 @@ open class MainActivity : FlutterFragmentActivity() {
                 }
                 ChannelMethods.SET_SECURE_SCREEN -> systemHandlers.handleSetSecureScreen(call, result)
                 ChannelMethods.SET_RECENTS_SNAPSHOT_BLOCKED -> systemHandlers.handleSetRecentsSnapshotBlocked(call, result)
-                ChannelMethods.NOTIFY_RESUMED_FRAME_PAINTED -> { privacyCurtain.reveal(); result.success(true) }
+                ChannelMethods.NOTIFY_RESUMED_FRAME_PAINTED -> { privacyCurtain.onResumedFramePainted(); result.success(true) }
                 ChannelMethods.SET_SENSITIVE_CLIPBOARD_TEXT -> systemHandlers.handleSetSensitiveClipboardText(call, result)
                 ChannelMethods.CLEAR_SENSITIVE_CLIPBOARD_TEXT -> systemHandlers.handleClearSensitiveClipboardText(call, result)
                 ChannelMethods.HAS_ALL_FILES_ACCESS -> systemHandlers.handleHasAllFilesAccess(call, result)
@@ -1161,6 +1181,10 @@ open class MainActivity : FlutterFragmentActivity() {
                 ChannelMethods.CREATE_CRYPTOMATOR_VAULT -> vaultCreationHandlers.handleCreateCryptomatorVault(call, result)
                 ChannelMethods.CHANGE_CRYPTOMATOR_VAULT_PASSWORD -> vaultUnlockHandlers.handleChangeCryptomatorVaultPassword(call, result)
                 ChannelMethods.MIGRATE_CRYPTOMATOR_VAULT -> vaultUnlockHandlers.handleMigrateCryptomatorVault(call, result)
+                ChannelMethods.PROBE_CRYPTOMATOR_VAULT -> vaultUnlockHandlers.handleProbeCryptomatorVault(call, result)
+                ChannelMethods.GET_CRYPTOMATOR_KEY_FILE_BACKUP -> vaultUnlockHandlers.handleGetCryptomatorKeyFileBackup(call, result)
+                ChannelMethods.SET_CRYPTOMATOR_KEY_FILE_BACKUP -> vaultUnlockHandlers.handleSetCryptomatorKeyFileBackup(call, result)
+                ChannelMethods.CLEAR_VAULT_OPEN_PREFERENCES -> vaultUnlockHandlers.handleClearVaultOpenPreferences(call, result)
                 ChannelMethods.CREATE_GOCRYPTFS_VAULT -> vaultCreationHandlers.handleCreateGocryptfsVault(call, result)
                 ChannelMethods.CHANGE_GOCRYPTFS_VAULT_PASSWORD -> vaultUnlockHandlers.handleChangeGocryptfsVaultPassword(call, result)
                 ChannelMethods.IS_GOCRYPTFS_VAULT -> vaultUnlockHandlers.handleIsGocryptfsVault(call, result)
@@ -1265,6 +1289,7 @@ open class MainActivity : FlutterFragmentActivity() {
                 ChannelMethods.READ_VAULT_SYMLINK -> fileOperationHandlers.handleReadVaultSymlink(call, result)
                 ChannelMethods.GET_HIDDEN_ENTRY_COUNT -> fileOperationHandlers.handleGetHiddenEntryCount(call, result)
                 ChannelMethods.CREATE_DIRECTORY -> fileOperationHandlers.handleCreateDirectory(call, result)
+                ChannelMethods.CREATE_VAULT_SYMLINK -> fileOperationHandlers.handleCreateVaultSymlink(call, result)
                 ChannelMethods.RENAME_FILE -> fileOperationHandlers.handleRenameFile(call, result)
                 ChannelMethods.COPY_FILE -> fileOperationHandlers.handleCopyFile(call, result)
                 ChannelMethods.CANCEL_COPY -> fileOperationHandlers.handleCancelCopy(call, result)
@@ -1523,6 +1548,14 @@ open class MainActivity : FlutterFragmentActivity() {
                 ChannelMethods.BOOK_COVER -> bookReaderHandlers.handleBookCover(call, result)
                 ChannelMethods.BOOK_CLOSE -> bookReaderHandlers.handleBookClose(call, result)
                 ChannelMethods.EXPORT_CONTAINER_HEADER -> headerBackupHandlers.handleExportContainerHeader(call, result)
+                ChannelMethods.EXPAND_VERACRYPT_CONTAINER -> veraCryptToolsHandlers.handleExpandContainer(call, result)
+                ChannelMethods.EXPAND_LUKS_CONTAINER -> veraCryptToolsHandlers.handleExpandLuksContainer(call, result)
+                ChannelMethods.GROW_VERACRYPT_FILE_SYSTEM -> veraCryptToolsHandlers.handleGrowFileSystem(call, result)
+                ChannelMethods.GROW_LUKS_FILE_SYSTEM -> veraCryptToolsHandlers.handleGrowLuksFileSystem(call, result)
+                ChannelMethods.EXPAND_BITLOCKER_CONTAINER -> veraCryptToolsHandlers.handleExpandBitLockerContainer(call, result)
+                ChannelMethods.GROW_BITLOCKER_FILE_SYSTEM -> veraCryptToolsHandlers.handleGrowBitLockerFileSystem(call, result)
+                ChannelMethods.ANALYZE_HIDDEN_VOLUME_HOST -> veraCryptToolsHandlers.handleAnalyzeHiddenHost(call, result)
+                ChannelMethods.CREATE_HIDDEN_VOLUME_IN_EXISTING -> veraCryptToolsHandlers.handleCreateHiddenInExisting(call, result)
                 ChannelMethods.RESTORE_CONTAINER_HEADER_REGION ->
                     headerBackupHandlers.handleRestoreContainerHeaderRegion(call, result)
                 ChannelMethods.RESOLVE_FOLDER_VAULT_CONFIG_FILE ->

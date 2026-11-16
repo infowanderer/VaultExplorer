@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:vaultexplorer/features/browser/metadata/metadata_edit_ui.dart';
 import 'package:vaultexplorer/core/extensions/l10n_extension.dart';
 import 'package:vaultexplorer/core/filesystem/local_storage_container.dart';
 import 'package:vaultexplorer/core/filesystem/mounted_container_filesystem.dart';
@@ -435,8 +436,9 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
       GlobalKey<FileMasonryViewState>();
   final GlobalKey<FileGridViewState> _gridKey =
       GlobalKey<FileGridViewState>();
-  final GlobalKey<FileListViewState> _listKey =
-      GlobalKey<FileListViewState>();
+  // Not final: replaced on every folder change, see
+  // [_resetBrowserScrollController].
+  GlobalKey<FileListViewState> _listKey = GlobalKey<FileListViewState>();
   ScrollController _backGesturePreviewScrollController = ScrollController();
 
   void _resetBrowserScrollController({double initialOffset = 0.0}) {
@@ -450,6 +452,14 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
     _browserScrollController = ScrollController(
       initialScrollOffset: initialOffset,
     );
+    // The list is keyed by a GlobalKey (so reveals can ask it where a tile
+    // sits), and a GlobalKey lets its state, and the scroll position inside
+    // it, move into the next folder's subtree. A kept position ignores the new
+    // controller's `initialScrollOffset`, so going back would not land where
+    // the folder was left. A new key gives the next folder a fresh list that
+    // starts at the saved offset on its first frame, which is what the
+    // predictive back preview already shows.
+    _listKey = GlobalKey<FileListViewState>();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       old.dispose();
     });
@@ -540,10 +550,19 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
 
   FileManagerToolbarConfig _toolbarConfig = FileManagerToolbarConfig.defaults();
 
-  /// Music mode for this location. While one of its library views is showing
-  /// the file toolbar has nothing to act on, so it is hidden (see
+  /// Music mode for this tab. It is the tab's own: another tab on the same
+  /// location keeps whatever mode it is in. While one of its library views is
+  /// showing the file toolbar has nothing to act on, so it is hidden (see
   /// [_shownToolbarConfig]).
-  late final MusicModeEntry _music = musicModeEntryFor(ref, widget.container);
+  late final MusicModeEntry _music = musicModeEntryFor(
+    ref,
+    widget.container,
+    widget.tabId,
+  );
+
+  /// Whether music mode was on in this tab at the last [_onMusicChanged], to
+  /// tell a mode change from a change of the shared folders.
+  bool _lastTabMusicEnabled = false;
 
   /// The toolbar is also held back until the saved music mode setting has been
   /// read: a vault that opens in music mode must not show the file toolbar for
@@ -556,17 +575,26 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
 
   void _onMusicChanged() {
     if (!mounted) return;
+    final enabled = _music.config.enabled;
+    final modeChanged = enabled != _lastTabMusicEnabled;
+    _lastTabMusicEnabled = enabled;
     setState(() {});
     _syncMusicModeHint();
+    // This tab switched between music mode and the listing: what new tabs
+    // open in follows the latest choice.
+    if (modeChanged) {
+      _publishGalleryDefault(!enabled && _isGalleryMode);
+    }
   }
 
-  /// Keeps the on-device music mode hint equal to the real saved setting, so
-  /// the next cold open of this storage can show the right view at once. Runs
-  /// only after the real setting has been read.
+  /// Keeps the on-device music mode hint equal to the saved default for new
+  /// tabs, so the next cold open of this storage can show the right view at
+  /// once. Runs only after the real setting has been read. (Not this tab's own
+  /// state: the hint predicts what a newly opened tab starts in.)
   void _syncMusicModeHint() {
     if (!_music.loaded || !_toolbarConfigReady) return;
     final uri = widget.container.uri;
-    final enabled = _music.config.enabled;
+    final enabled = _music.savedDefaultEnabled;
     if (_toolbarConfig.isMusicModeHintedForStorage(uri) == enabled) return;
     unawaited(
       _updateToolbarConfigField(
@@ -904,6 +932,7 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
         if (next != null) _onDropReveal(next);
       },
     );
+    _lastTabMusicEnabled = _music.config.enabled;
     _music.addListener(_onMusicChanged);
     _wasActiveTab = _isActiveTab;
     _wasMultiTab = _hasMultipleTabs;
@@ -1492,6 +1521,30 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
     );
   }
 
+  /// Tags, date and time, and metadata removal for the selected files.
+  void _editMetadata(List<RawEntry> entries) {
+    final container = widget.container;
+    unawaited(
+      showMetadataEditMenu(
+        context,
+        ref,
+        [
+          for (final e in entries)
+            MetadataEditTarget(
+              container: container,
+              path: _fullPathOf(e),
+              sizeBytes: e.sizeBytes,
+              modifiedSecs: e.modifiedSecs,
+            ),
+        ],
+        onChanged: (_) {
+          exitSelectionMode();
+          unawaited(_loadDirectoryContents(_currentDirPath, refresh: true));
+        },
+      ),
+    );
+  }
+
   void _showSyncSettings(RawEntry entry) {
     unawaited(
       SyncRuleEditorSheet.show(
@@ -1710,7 +1763,8 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
     if (mounted &&
         !hasGoToLocationRequest &&
         _currentFilter == null &&
-        _toolbarConfig.isGalleryModeForStorage(widget.container.uri)) {
+        _toolbarConfig.isGalleryModeForStorage(widget.container.uri) &&
+        !_music.config.enabled) {
       _onFilterChosen('gallery');
     }
   }
@@ -2206,16 +2260,14 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
     _signalActivity();
     _navNotifier.setFilter(value);
 
-    // Keep persisted gallery mode in sync with the filter selection.
-    final uri = widget.container.uri;
+    // Gallery mode is this tab's own (it is the tab's filter). The saved flag
+    // is only what tabs opened from now on start in, so it follows the latest
+    // choice and never changes a tab that is already open.
     final isGalleryFilter = value == 'gallery';
-    if (_toolbarConfig.isGalleryModeForStorage(uri) != isGalleryFilter) {
-      final effectiveUri = widget.container.isLocalStorage
-          ? null
-          : widget.container.uri;
-      ref
-          .read(fileManagerToolbarSettingsProvider(effectiveUri).notifier)
-          .setGalleryModeForStorage(uri, isGalleryFilter);
+    _publishGalleryDefault(isGalleryFilter && !_music.config.enabled);
+    if (isGalleryFilter && !_music.config.enabled) {
+      // Gallery is now the latest choice: new tabs must not open in music mode.
+      unawaited(_music.setDefaultForNewTabs(false));
     }
 
     if (value == null &&
@@ -2234,8 +2286,20 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
     if (mounted) _queueItemReveal(name);
   }
 
-  bool get _isGalleryMode =>
-      _toolbarConfig.isGalleryModeForStorage(widget.container.uri);
+  /// Whether THIS tab is in gallery mode. Read from the tab's own filter, not
+  /// from the saved per-storage flag, which other tabs on the same storage
+  /// also write.
+  bool get _isGalleryMode => _currentFilter == 'gallery';
+
+  /// Records whether tabs opened from now on start in gallery mode.
+  void _publishGalleryDefault(bool enabled) {
+    final uri = widget.container.uri;
+    if (_toolbarConfig.isGalleryModeForStorage(uri) == enabled) return;
+    final effectiveUri = widget.container.isLocalStorage ? null : uri;
+    ref
+        .read(fileManagerToolbarSettingsProvider(effectiveUri).notifier)
+        .setGalleryModeForStorage(uri, enabled);
+  }
 
   /// The visible toolbar actions, excluding the filter button in gallery mode.
   List<FileManagerAction> get _visibleActions {
@@ -2247,9 +2311,7 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
   }
 
   void _toggleGalleryMode() {
-    final uri = widget.container.uri;
-    final isCurrentlyEnabled = _toolbarConfig.isGalleryModeForStorage(uri);
-    final enable = !isCurrentlyEnabled;
+    final enable = !_isGalleryMode;
 
     if (enable) {
       _onFilterChosen('gallery');
@@ -2338,7 +2400,7 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
     try {
       final raw = await ref
           .read(vaultFileIoApiProvider)
-          .listDirectory(widget.container, bookmark.parentPath, refresh: true);
+          .listDirectoryForBrowser(widget.container, bookmark.parentPath, refresh: true);
       if (raw == null) return false;
       return RawEntry.parseAll(
         raw,
@@ -2733,34 +2795,78 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
     toggleSelectItem(entry);
   }
 
+  /// Returns the effective target filename for a Cryptomator shortcut.
+  ///
+  /// Content is still opened through [linkPath] so the native vault layer
+  /// follows the link. We only resolve the name here: dispatch, MIME/type
+  /// detection and viewers need the target extension rather than the
+  /// shortcut's arbitrary display name. Resolve chained links too, but never
+  /// allow a target to escape the vault or loop forever.
+  Future<String> _effectiveOpenName(RawEntry entry, String linkPath) async {
+    if (!entry.isSymlink || !mayHaveVaultSymbolicLinks(widget.container)) {
+      return entry.name;
+    }
+
+    final api = ref.read(vaultFileIoApiProvider);
+    var currentPath = linkPath;
+    final visited = <String>{};
+    for (var hop = 0; hop < 40; hop++) {
+      if (!visited.add(currentPath)) return entry.name;
+      final target = await api.readVaultSymlink(widget.container, currentPath);
+      if (target == null || target.isEmpty) {
+        return p.posix.basename(currentPath);
+      }
+      // Cryptomator shortcuts are deliberately confined to this vault.
+      if (p.posix.isAbsolute(target)) return entry.name;
+      final resolved = p.posix.normalize(
+        p.posix.join(p.posix.dirname(currentPath), target),
+      );
+      if (resolved == '..' || resolved.startsWith('../') ||
+          p.posix.isAbsolute(resolved)) {
+        return entry.name;
+      }
+      currentPath = resolved;
+    }
+    return entry.name;
+  }
+
+  MediaKind? _mediaKindForName(String fileName) {
+    if (MediaViewerConstants.isImage(fileName)) return MediaKind.image;
+    if (MediaViewerConstants.isVideo(fileName)) return MediaKind.video;
+    if (MediaViewerConstants.isAudio(fileName)) return MediaKind.audio;
+    return null;
+  }
+
   Future<void> _handleFileTap(RawEntry entry) async {
     ThumbnailConcurrency.videoLimiter.cancelAll();
-    if (MediaViewerConstants.isVideo(entry.name)) {
-      await PlaybackThrottleController.setActive(true);
-    }
     _signalActivity();
     if (isSelectionMode) {
       toggleSelectItem(entry);
       return;
     }
     final fullPath = _fullPathOf(entry);
-    final parts = entry.name.split('.');
+    final openName = await _effectiveOpenName(entry, fullPath);
+    if (!mounted) return;
+    if (MediaViewerConstants.isVideo(openName)) {
+      await PlaybackThrottleController.setActive(true);
+    }
+    final parts = openName.split('.');
     final ext =
-        ArchiveService.splitPartExtension(entry.name) ??
+        ArchiveService.splitPartExtension(openName) ??
         (parts.length > 1
             ? parts.last.toLowerCase().replaceFirst(RegExp(r'^\.+'), '').trim()
             : '');
     if (ArchiveService.opensOnTap(ext)) {
       if (_archiveContext == null) {
-        await _openArchive(fullPath, entry.name);
+        await _openArchive(fullPath, openName);
         return;
       }
       // Inside an archive the path is virtual, so the file can't be opened
       // like a container file; it is staged and opened on top of this one.
       // (A split archive part has no siblings to be read with, so it falls
       // through to the ordinary in-archive handling below.)
-      if (ArchiveService.canOpenNested(entry.name, ext)) {
-        await _openNestedArchive(fullPath, entry.name);
+      if (ArchiveService.canOpenNested(openName, ext)) {
+        await _openNestedArchive(fullPath, openName);
         return;
       }
     }
@@ -2778,9 +2884,9 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
         if (mounted) {
           final opensInNativeViewer =
               ext == 'pdf' ||
-              MediaViewerConstants.isImage(entry.name) ||
-              MediaViewerConstants.isVideo(entry.name) ||
-              MediaViewerConstants.isAudio(entry.name);
+              MediaViewerConstants.isImage(openName) ||
+              MediaViewerConstants.isVideo(openName) ||
+              MediaViewerConstants.isAudio(openName);
           final opensInTextEditor = const {
             'txt',
             'md',
@@ -2794,9 +2900,9 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
             final previewPath = stageResult?.path;
             if (previewPath != null) {
               if (opensInTextEditor) {
-                await _openArchiveTextPreview(entry.name, previewPath);
+                await _openArchiveTextPreview(openName, previewPath);
               } else {
-                await _openArchivePreview(entry.name, previewPath);
+                await _openArchivePreview(openName, previewPath);
               }
             } else if (mounted) {
               _navNotifier.setLoading(false);
@@ -2821,7 +2927,7 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
                     area: SkinArea.files,
                     child: ArchiveFileViewer(
                       bytes: extractResult!.data!,
-                      fileName: entry.name,
+                      fileName: openName,
                     ),
                   ),
                 ),
@@ -2847,7 +2953,7 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
           .read(vaultItemsServiceProvider)
           .loadItem(widget.container, fullPath);
       if (item != null) {
-        final baseName = entry.name.substring(0, entry.name.lastIndexOf('.'));
+        final baseName = openName.substring(0, openName.lastIndexOf('.'));
         item.title = baseName;
         if (mounted) {
           await Navigator.push(
@@ -2899,7 +3005,7 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
       ext: ext,
       extensionPreference: pref,
       needsSystemAppForLocal: needsSystemAppForLocal,
-      isSupportedMedia: _isSupportedMedia(entry.name),
+      isSupportedMedia: _isSupportedMedia(openName),
     );
     switch (action) {
       case OpenInEditor():
@@ -2916,29 +3022,54 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
         if (!mounted) return;
         _loadDirectoryContents(_currentDirPath);
       case OpenInMediaViewer():
-        await _openMediaViewer(entry.name, fullPath);
+        // The media viewer classifies items by the path it receives. For a
+        // shortcut that path is deliberately the link path (so reads still
+        // go through the vault's link resolver), whose extension may differ
+        // from the target. Pin the target's media kind to the link path for
+        // the lifetime of the viewer so an image shortcut named `movie.mp4`
+        // is still treated as an image, and vice versa.
+        final shortcutMediaKind = entry.isSymlink
+            ? _mediaKindForName(openName)
+            : null;
+        if (shortcutMediaKind == null) {
+          await _openMediaViewer(openName, fullPath);
+        } else {
+          await MediaViewerConstants.withKindOverride(
+            fullPath,
+            shortcutMediaKind,
+            // A folder playlist contains other paths whose shortcut targets
+            // have not been resolved here. Keep this launch focused on the
+            // selected shortcut so no neighbouring link is classified from
+            // its display name.
+            () => _openMediaViewer(
+              openName,
+              fullPath,
+              singleFile: entry.isSymlink,
+            ),
+          );
+        }
       case OpenInPdfViewer():
         await _openPdfViewer(fullPath);
       case OpenInHtmlViewer():
         _openHtmlViewer(fullPath);
       case OpenInComicReader():
-        await _openBook(entry.name, fullPath, BookKind.comic);
+        await _openBook(openName, fullPath, BookKind.comic);
       case OpenInEpubReader():
-        await _openBook(entry.name, fullPath, BookKind.epub);
+        await _openBook(openName, fullPath, BookKind.epub);
       case OpenWithSystemApp(packageName: final packageName):
-        _openFileWithApp(entry.name, fullPath, packageName: packageName);
+        _openFileWithApp(openName, fullPath, packageName: packageName);
       case InstallApk():
-        await _installApk(entry.name, fullPath);
+        await _installApk(openName, fullPath);
       case OpenAsArchive():
         // An APK is a ZIP; the archive browser sniffs the format from the
         // bytes, so the same path a .zip takes works unchanged.
-        await _openArchive(fullPath, entry.name);
+        await _openArchive(fullPath, openName);
       case ShowApkOpenChooser():
         if (!mounted) return;
-        await _showApkOpenChooser(entry.name, fullPath, ext);
+        await _showApkOpenChooser(openName, fullPath, ext);
       case ShowOpenWithDialog():
         if (!mounted) return;
-        await _showOpenWithDialog(entry.name, fullPath, ext, settings);
+        await _showOpenWithDialog(openName, fullPath, ext, settings);
     }
   }
 
@@ -5617,7 +5748,7 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
       ),
       FileManagerAction.gallery: (context) => IconButton(
         icon: Icon(
-          toolbarConfig.isGalleryModeForStorage(widget.container.uri)
+          _isGalleryMode
               ? Icons.photo_library_rounded
               : Icons.photo_library_outlined,
         ),
@@ -5649,13 +5780,12 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
         onPressed: canPlayMedia ? _startMediaViewerFromCurrentLocation : null,
       ),
       FileManagerAction.musicMode: (context) {
-        final music = musicModeEntryFor(ref, widget.container);
+        final music = _music;
         return ListenableBuilder(
           listenable: music,
           builder: (context, _) => MusicModeSwitchButton(
             musicMode: music.config.enabled,
-            onPressed: () =>
-                unawaited(toggleMusicMode(context, ref, widget.container)),
+            onPressed: () => unawaited(toggleMusicMode(context, ref, music)),
           ),
         );
       },
@@ -5726,7 +5856,7 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
       // If the Add FAB is hidden via config, More takes the primary bottom-right slot.
       final moreRight = showAddFab ? (baseRight + 68.0) : baseRight;
 
-      final musicEntry = musicModeEntryFor(ref, widget.container);
+      final musicEntry = _music;
       widgets.add(
         Positioned(
           right: moreRight,
@@ -5756,14 +5886,15 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
             onPlayMedia: _startMediaViewerFromCurrentLocation,
               musicModeActive: musicEntry.config.enabled,
               onToggleMusicMode: () =>
-                  unawaited(toggleMusicMode(context, ref, widget.container)),
-            isGalleryMode: _toolbarConfig.isGalleryModeForStorage(
-              widget.container.uri,
-            ),
+                  unawaited(toggleMusicMode(context, ref, musicEntry)),
+            isGalleryMode: _isGalleryMode,
             onToggleGallery: _toggleGalleryMode,
             toolbarConfig: _toolbarConfig,
             onToggleShowHiddenFiles: (v) => _updateToolbarConfigField(
               (c) => c.copyWith(showHiddenFiles: v),
+            ),
+            onToggleShowNoMediaFolders: (v) => _updateToolbarConfigField(
+              (c) => c.copyWith(showNoMediaFolders: v),
             ),
             onToggleShowGridFileNames: (v) => _updateToolbarConfigField(
               (c) => c.copyWith(showGridFileNames: v),
@@ -5954,6 +6085,12 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
         (previewDirPath == previewArchiveRootPath ||
             previewDirPath.startsWith('$previewArchiveRootPath/'));
     final previewArchiveContext = previewInsideArchive ? _archiveContext : null;
+    // The folder being swiped back to is shown in the sort it will be landed in
+    // (see [_navigateUp]), not the sort of the folder being left, which may
+    // have been changed since.
+    final previewSort = _backGesturePreviewDirPath != null
+        ? _getSortStateForFolder(previewDirPath)
+        : (sortBy: sortBy, sortAscending: sortAscending);
     final sortedPreviewItems =
         (_backGestureProgress != null && _backGesturePreviewItems != null)
         ? (List<RawEntry>.of(
@@ -5970,8 +6107,8 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
               eb,
               currentDirPath: previewDirPath,
               pinnedPaths: _pinnedPaths,
-              sortBy: sortBy,
-              sortAscending: sortAscending,
+              sortBy: previewSort.sortBy,
+              sortAscending: previewSort.sortAscending,
             ),
           ))
         : null;
@@ -6391,6 +6528,7 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
         onShowFolderDocumentProviderSheet: _showFolderDocumentProviderSheet,
         onToggleFolderDocumentProvider: _toggleFolderDocumentProvider,
         onSyncSettings: _showSyncSettings,
+        onEditMetadata: _editMetadata,
         onSyncRoot: _showRootSyncSettings,
         onEditImage: _editImage,
         onEditVideo: _editVideo,
@@ -6578,9 +6716,9 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
             hub: ref.read(musicLibraryProvider).hub,
             showMenu: false,
             onToggleMode: () =>
-                unawaited(toggleMusicMode(context, ref, widget.container)),
+                unawaited(toggleMusicMode(context, ref, _music)),
             onEditFolders: () =>
-                unawaited(editMusicFolders(context, ref, widget.container)),
+                unawaited(editMusicFolders(context, ref, _music)),
           )
         : null;
     final Widget? embeddedBottomBar = selectionBottomBar ??
@@ -7000,7 +7138,7 @@ class _DirectoryContentViewState extends ConsumerState<DirectoryContentView>
                                                             previewArchiveContext,
                                                         archiveRootPath:
                                                             previewArchiveRootPath,
-                                                        sortBy: sortBy,
+                                                        sortBy: previewSort.sortBy,
                                                       ),
                                                     ],
                                                     Opacity(
