@@ -166,13 +166,12 @@ void main() {
     });
 
     test('survives a toJson / fromJson round trip', () {
-      final restored = MediaViewerToolbarConfig.fromJson(
-        MediaViewerToolbarConfig.defaults().toJson(),
-      );
-      expect(
-        restored.topBarActions,
-        contains(MediaViewerAction.lockControls),
-      );
+      final original = MediaViewerToolbarConfig.defaults();
+      final restored = MediaViewerToolbarConfig.fromJson(original.toJson());
+      // The default was moved to More; round-tripping must preserve its place.
+      expect(restored.topBarActions, original.topBarActions);
+      expect(restored.moreMenuActions, original.moreMenuActions);
+      expect(restored.moreMenuActions, contains(MediaViewerAction.lockControls));
     });
   });
 }

@@ -669,6 +669,20 @@ void applyImportedConfig(FileManagerToolbarConfig newConfig) {
     return updateMediaViewerConfig(updated);
   }
 
+  Future<void> setMediaViewerKeyboardWheelSeekSeconds(int seconds) =>
+      updateMediaViewerConfig(
+        state.config.mediaViewerToolbarConfig.copyWith(
+          keyboardWheelSeekSeconds: seconds.clamp(1, 600),
+        ),
+      );
+
+  Future<void> setMediaViewerKeyboardWheelCtrlSeekSeconds(int seconds) =>
+      updateMediaViewerConfig(
+        state.config.mediaViewerToolbarConfig.copyWith(
+          keyboardWheelCtrlSeekSeconds: seconds.clamp(1, 600),
+        ),
+      );
+
   Future<void> setMediaViewerLoopPlaylist(bool enabled) {
     final updated = state.config.mediaViewerToolbarConfig.copyWith(
       loopPlaylist: enabled,

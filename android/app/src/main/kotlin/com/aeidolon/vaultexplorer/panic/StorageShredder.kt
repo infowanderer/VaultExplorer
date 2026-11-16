@@ -104,6 +104,12 @@ object StorageShredder {
      * and resetting app settings/master password to factory defaults without deleting external vault files.
      */
     fun purgeCredentialStores(context: Context): Int {
+        com.aeidolon.vaultexplorer.organizer.OrganizerHandlers.invalidateSessions()
+        val journalCleared = runCatching {
+            com.aeidolon.vaultexplorer.organizer.OrganizerJournalFiles.clear(context)
+        }.getOrDefault(false)
+        if (!journalCleared) VeLog.w(TAG) { "Encrypted organizer journal cleanup incomplete" }
+
         var cleared = 0
         val names = PanicPurgeRegistry.credentialPrefsNames
         for (name in names) {

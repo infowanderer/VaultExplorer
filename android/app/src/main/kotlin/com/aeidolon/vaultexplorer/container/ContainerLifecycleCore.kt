@@ -1,5 +1,7 @@
 package com.aeidolon.vaultexplorer.container
 
+import com.aeidolon.vaultexplorer.ProviderAuthorities
+
 import android.content.Context
 import android.net.Uri
 import android.os.Handler
@@ -156,7 +158,7 @@ object ContainerLifecycleCore {
             }
             ContainerSessionRegistry.removeSession(volId)
             context.contentResolver.notifyChange(
-                DocumentsContract.buildRootsUri("com.aeidolon.vaultexplorer.documents"), null,
+                DocumentsContract.buildRootsUri(ProviderAuthorities.DOCUMENTS), null,
             )
             VeLog.i(TAG) {
                 "lockContainer succeeded for volId=$volId, remaining active sessions=" +
@@ -304,7 +306,7 @@ object ContainerLifecycleCore {
                 ?.subFolderMounts?.isNotEmpty() == true
             if (docProvider || hasFolderMounts) {
                 context.contentResolver.notifyChange(
-                    DocumentsContract.buildRootsUri("com.aeidolon.vaultexplorer.documents"), null,
+                    DocumentsContract.buildRootsUri(ProviderAuthorities.DOCUMENTS), null,
                 )
             }
 
@@ -436,7 +438,7 @@ object ContainerLifecycleCore {
                         ?.subFolderMounts?.isNotEmpty() == true
                     if (docProvider || hasFolderMounts) {
                         context.contentResolver.notifyChange(
-                            DocumentsContract.buildRootsUri("com.aeidolon.vaultexplorer.documents"), null,
+                            DocumentsContract.buildRootsUri(ProviderAuthorities.DOCUMENTS), null,
                         )
                     }
                     if (format == DirectoryVaultFormat.CRYFS && cacheDerivedKey && preservedKey == null &&

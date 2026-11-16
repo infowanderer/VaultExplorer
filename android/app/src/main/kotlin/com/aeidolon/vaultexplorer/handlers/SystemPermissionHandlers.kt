@@ -1,5 +1,7 @@
 package com.aeidolon.vaultexplorer.handlers
 
+import com.aeidolon.vaultexplorer.ProviderAuthorities
+
 import android.Manifest
 import android.app.PendingIntent
 import android.content.ActivityNotFoundException
@@ -515,7 +517,7 @@ class SystemPermissionHandlers(private val activity: MainActivity) {
                             return
                         }
                     DocumentsContract.buildDocumentUri(
-                        "com.aeidolon.vaultexplorer.documents",
+                        ProviderAuthorities.DOCUMENTS,
                         "$volId:file:$fileName?mimeType=${MimeTypeHelper.APK}",
                     )
                 }
@@ -559,7 +561,7 @@ class SystemPermissionHandlers(private val activity: MainActivity) {
                 finalDocId += "?mimeType=" + mimeTypeOverride
             }
             val docUri = DocumentsContract.buildDocumentUri(
-                "com.aeidolon.vaultexplorer.documents",
+                ProviderAuthorities.DOCUMENTS,
                 finalDocId
             )
             val readOnly = ContainerSessionRegistry.activeSessions[volId]?.readOnly == true

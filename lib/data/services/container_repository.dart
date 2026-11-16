@@ -1,3 +1,4 @@
+import 'package:vaultexplorer/data/services/secure_metadata_store.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -146,22 +147,25 @@ class ContainerRepository {
   ContainerRepository.withCryptoApi(
     VaultCryptoApi cryptoApi, [
     AppSecureStorage? secure,
-  ]) : this._(
-         cryptoApi.clearDerivedKey,
-         cryptoApi.deleteBiometricKey,
-         secure,
-       );
+  ]) : this._(cryptoApi.clearDerivedKey, cryptoApi.deleteBiometricKey, secure);
 
   final Future<bool> Function(String filePath, {bool removeExpiry})
   _clearDerivedKey;
   final Future<bool> Function(String id) _deleteBiometricKey;
   final AppSecureStorage _secure;
   Map<String, ContainerRecord>? _cache;
+  bool _metadataLoadFailed = false;
 
   static Future<File> get _dataFile async {
     final dir = await getApplicationDocumentsDirectory();
     return File('${dir.path}/containers_v2.json');
   }
+
+  SecureMetadataStore get _metadata => SecureMetadataStore(
+    key: 'private_metadata_containers_v1',
+    legacyFile: () => _dataFile,
+    secure: _secure,
+  );
 
   Future<Map<String, ContainerRecord>> loadAll() async {
     await _ensureLoaded();
@@ -175,6 +179,7 @@ class ContainerRepository {
 
   Future<void> save(ContainerRecord record) async {
     await _ensureLoaded();
+    _requireWritableMetadata();
     _cache![record.uri] = record;
     final needsPassword = record.unlockMethod != ContainerUnlockMethod.password;
     final pwKey = _keystoreKey(record.uri);
@@ -321,6 +326,7 @@ class ContainerRepository {
 
   Future<void> saveOrder(List<String> orderedUris) async {
     await _ensureLoaded();
+    _requireWritableMetadata();
     if (_cache == null) return;
     final newCache = <String, ContainerRecord>{};
     for (final uri in orderedUris) {
@@ -339,6 +345,7 @@ class ContainerRepository {
 
   Future<void> remove(String uri) async {
     await _ensureLoaded();
+    _requireWritableMetadata();
     _cache!.remove(uri);
     await _deleteKeyWithLegacyCleanup(
       uri,
@@ -413,8 +420,10 @@ class ContainerRepository {
   /// record unchanged (null when unknown) if it was not using biometrics.
   Future<ContainerRecord?> revertBiometricsToPassword(String uri) async {
     await _ensureLoaded();
+    _requireWritableMetadata();
     final record = _cache![uri];
-    if (record == null || record.unlockMethod != ContainerUnlockMethod.biometrics) {
+    if (record == null ||
+        record.unlockMethod != ContainerUnlockMethod.biometrics) {
       return record;
     }
     final reverted = record.copyWith(
@@ -450,6 +459,7 @@ class ContainerRepository {
   /// Returns how many records changed.
   Future<int> disableDerivedKeyCachingFor(Iterable<String> keyPaths) async {
     await _ensureLoaded();
+    _requireWritableMetadata();
     final wanted = keyPaths.toSet();
     var changed = 0;
     for (final record in _cache!.values.toList()) {
@@ -485,6 +495,7 @@ class ContainerRepository {
   /// trip here is safe -- same pattern as [disableDerivedKeyCachingFor]).
   Future<int> resetThumbnailOverrides() async {
     await _ensureLoaded();
+    _requireWritableMetadata();
     var changed = 0;
     for (final record in _cache!.values.toList()) {
       if (record.followsGlobalThumbnails) continue;
@@ -505,6 +516,7 @@ class ContainerRepository {
     bool autoMount = false,
   }) async {
     await _ensureLoaded();
+    _requireWritableMetadata();
     final existing = _cache![uri];
     if (existing == null) return;
     final folders = existing.documentProviderFolders
@@ -524,6 +536,7 @@ class ContainerRepository {
     bool autoMount,
   ) async {
     await _ensureLoaded();
+    _requireWritableMetadata();
     final existing = _cache![uri];
     if (existing == null) return;
     final folders = existing.documentProviderFolders
@@ -854,11 +867,12 @@ class ContainerRepository {
   }
 
   Future<void> _hydrate() async {
+    _metadataLoadFailed = false;
     _cache = {};
     try {
-      final file = await _dataFile;
-      if (!await file.exists()) return;
-      final list = jsonDecode(await file.readAsString()) as List<dynamic>;
+      final serialized = await _metadata.read();
+      if (serialized == null) return;
+      final list = jsonDecode(serialized) as List<dynamic>;
 
       // Fetch all secure encrypted preferences. Isolated so that transient Keystore
       // delays or errors on cold start do not wipe out valid container records from disk.
@@ -868,13 +882,11 @@ class ContainerRepository {
         // for just those means the remembered-password (`vc2_pw_`) and
         // pattern/PIN-hash entries are never decrypted or handed to Dart on
         // cold start.
-        secureData = await _secure.readAllWithPrefixes(
-          const [
-            'vc2_docfolders_',
-            'vc2_keyfiles_',
-            'vc2_composite_carriers_',
-          ],
-        );
+        secureData = await _secure.readAllWithPrefixes(const [
+          'vc2_docfolders_',
+          'vc2_keyfiles_',
+          'vc2_composite_carriers_',
+        ]);
       } catch (e) {
         VeLog.w(
           _kLogTag,
@@ -976,19 +988,29 @@ class ContainerRepository {
         }
       }
     } catch (e) {
-      VeLog.e(_kLogTag, '_hydrate: Failed to read container data file', e);
+      _metadataLoadFailed = true;
+      VeLog.e(_kLogTag, 'Protected container metadata could not be loaded');
       _cache = {};
     }
   }
 
+  void _requireWritableMetadata() {
+    if (_metadataLoadFailed) {
+      throw StateError(
+        'Container metadata could not be loaded; refusing to replace it',
+      );
+    }
+  }
+
   Future<void> _persist() async {
+    _requireWritableMetadata();
     try {
-      final file = await _dataFile;
-      // .toJson() inherently excludes the secure paths so they are never written to the clear-text file.
+      // Secret credentials remain separate; the record collection is now protected too.
       final list = _cache!.values.map((r) => r.toJson()).toList();
-      await file.writeAsString(jsonEncode(list));
-    } catch (e) {
-      _logSwallowed('_persist', e);
+      await _metadata.write(jsonEncode(list));
+    } catch (_) {
+      VeLog.e(_kLogTag, 'Protected container metadata could not be saved');
+      rethrow;
     }
   }
 }
@@ -1057,6 +1079,7 @@ class ContainerRecord {
   final ThumbnailQuality? thumbnailQuality;
   final bool cacheDerivedKey;
   final VaultDeleteAfterImportMode vaultDeleteAfterImportMode;
+
   /// Persistent default used to initialize the read-only choice on each
   /// unlock. The unlock screen's current read-only toggle is session-only.
   final bool alwaysOpenReadOnly;

@@ -1,5 +1,7 @@
 package com.aeidolon.vaultexplorer.streaming
 
+import com.aeidolon.vaultexplorer.ProviderAuthorities
+
 import android.content.ContentProvider
 import android.content.ContentValues
 import android.content.Context
@@ -25,7 +27,7 @@ import java.util.concurrent.ConcurrentHashMap
 class VaultStreamProvider : ContentProvider() {
     companion object {
         private const val TAG = "VaultStreamProvider"
-        const val AUTHORITY = "com.aeidolon.vaultexplorer.stream"
+        val AUTHORITY = ProviderAuthorities.STREAM
         private const val STREAM_TIMEOUT_MS = 300_000L // 5 minutes validity
         private const val MAX_CONCURRENT_STREAMS = 16
         private const val READ_CACHE_CAPACITY = 1024 * 1024 // 1 MB in-memory read buffer

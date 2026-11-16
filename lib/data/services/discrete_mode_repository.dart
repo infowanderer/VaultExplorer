@@ -1,18 +1,12 @@
+import 'secure_metadata_store.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 
 /// One entry in the decoy reader's "recent files" list.
 ///
-/// This is purely cosmetic decoy-reader state -- it exists only so "Doc
-/// Viewer" looks and behaves like a real, previously-used PDF reader. It
-/// carries no vault linkage of any kind (just a SAF `content://` Uri and a
-/// display name), which is exactly why it's fine for it to live in a plain
-/// JSON file rather than secure storage: unlike Mask Mode's on/off
-/// state (deliberately *not* persisted anywhere, see
-/// `DisguiseModeApi.getMode`), a list of "PDFs this reader app opened"
-/// reveals nothing about the vault and is the kind of thing a real PDF
-/// reader would have anyway.
+/// Display names and URIs are private metadata even without a vault linkage.
+/// The repository below now persists them using protected native storage.
 class DecoyRecentFile {
   final String uri;
   final String displayName;
@@ -33,9 +27,7 @@ class DecoyRecentFile {
   factory DecoyRecentFile.fromJson(Map<String, dynamic> j) => DecoyRecentFile(
     uri: j['uri'] as String? ?? '',
     displayName: j['displayName'] as String? ?? 'Document.pdf',
-    openedAt: DateTime.fromMillisecondsSinceEpoch(
-      j['openedAt'] as int? ?? 0,
-    ),
+    openedAt: DateTime.fromMillisecondsSinceEpoch(j['openedAt'] as int? ?? 0),
   );
 }
 
@@ -51,11 +43,16 @@ class DiscreteModeRepository {
     return File('${dir.path}/discrete_mode_recents.json');
   }
 
+  static final _metadata = SecureMetadataStore(
+    key: 'private_metadata_recents_v1',
+    legacyFile: () => _recentsFile,
+  );
+
   static Future<List<DecoyRecentFile>> loadRecents() async {
     try {
-      final file = await _recentsFile;
-      if (!await file.exists()) return [];
-      final raw = jsonDecode(await file.readAsString());
+      final serialized = await _metadata.read();
+      if (serialized == null) return [];
+      final raw = jsonDecode(serialized);
       if (raw is! List) return [];
       return raw
           .whereType<Map<String, dynamic>>()
@@ -70,15 +67,22 @@ class DiscreteModeRepository {
   /// trimming to [_kMaxRecents].
   static Future<void> recordOpened(DecoyRecentFile file) async {
     try {
-      final current = await loadRecents();
-      final next = [
-        file,
-        ...current.where((r) => r.uri != file.uri),
-      ].take(_kMaxRecents).toList();
-      final recentsFile = await _recentsFile;
-      await recentsFile.writeAsString(
-        jsonEncode(next.map((r) => r.toJson()).toList()),
-      );
+      await _metadata.update((serialized) {
+        final current = serialized == null
+            ? <DecoyRecentFile>[]
+            : (jsonDecode(serialized) as List)
+                  .map(
+                    (e) => DecoyRecentFile.fromJson(
+                      Map<String, dynamic>.from(e as Map),
+                    ),
+                  )
+                  .toList();
+        final next = [
+          file,
+          ...current.where((r) => r.uri != file.uri),
+        ].take(_kMaxRecents);
+        return jsonEncode(next.map((r) => r.toJson()).toList());
+      });
     } catch (_) {
       // Best-effort, same as AppSettingsService.saveSettings -- a failure
       // to remember a recent file should never block opening it.
@@ -88,16 +92,14 @@ class DiscreteModeRepository {
   /// Removes a single entry by [uri] from recents.
   static Future<void> removeRecent(String uri) async {
     try {
-      final current = await loadRecents();
-      final next = current.where((r) => r.uri != uri).toList();
-      final recentsFile = await _recentsFile;
-      if (next.isEmpty) {
-        if (await recentsFile.exists()) await recentsFile.delete();
-      } else {
-        await recentsFile.writeAsString(
-          jsonEncode(next.map((r) => r.toJson()).toList()),
+      await _metadata.update((serialized) {
+        final current = serialized == null
+            ? <dynamic>[]
+            : jsonDecode(serialized) as List;
+        return jsonEncode(
+          current.where((r) => (r as Map)['uri'] != uri).toList(),
         );
-      }
+      });
     } catch (_) {
       // Best-effort persistence: if this write/delete fails, the on-disk
       // recents list may lag the in-memory intent, but nothing here is
@@ -107,8 +109,7 @@ class DiscreteModeRepository {
 
   static Future<void> clearRecents() async {
     try {
-      final file = await _recentsFile;
-      if (await file.exists()) await file.delete();
+      await _metadata.write('[]');
     } catch (_) {
       // Same reasoning as removeRecent() above.
     }

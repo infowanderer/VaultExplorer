@@ -20,7 +20,10 @@ import 'package:vaultexplorer/features/browser/viewer/widgets/color_adjust_filte
 import 'package:vaultexplorer/features/browser/viewer/widgets/encrypted_image_widget.dart';
 import 'package:vaultexplorer/features/browser/viewer/widgets/swipe_to_dismiss_layer.dart';
 
+import '../media_input.dart';
+
 class ImagePageItem extends StatefulWidget {
+  final MediaZoomController? inputZoom;
   final String fileName;
   final Uint8List? prefetchedBytes;
   final MountedContainer container;
@@ -53,6 +56,7 @@ class ImagePageItem extends StatefulWidget {
 
   const ImagePageItem({
     super.key,
+    this.inputZoom,
     required this.fileName,
     required this.prefetchedBytes,
     required this.container,
@@ -174,6 +178,7 @@ class _ImagePageItemState extends State<ImagePageItem>
         }
       });
     _brightnessLevel = ScreenBrightnessBridge.lastKnownLevel;
+    widget.inputZoom?.addListener(_stepInputZoom);
     _initImageDimensions();
   }
 
@@ -200,6 +205,10 @@ class _ImagePageItemState extends State<ImagePageItem>
   @override
   void didUpdateWidget(covariant ImagePageItem oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.inputZoom != widget.inputZoom) {
+      oldWidget.inputZoom?.removeListener(_stepInputZoom);
+      widget.inputZoom?.addListener(_stepInputZoom);
+    }
     if (oldWidget.prefetchedBytes != widget.prefetchedBytes ||
         oldWidget.fileName != widget.fileName) {
       _imageSize = null;
@@ -216,6 +225,28 @@ class _ImagePageItemState extends State<ImagePageItem>
       _transformationController.value = Matrix4.identity();
       widget.onZoomChanged(true);
     }
+  }
+
+  void _stepInputZoom() {
+    if (!widget.isActive || !widget.enableZoom) return;
+    final viewport = _lastViewportSize;
+    if (viewport == null || viewport.isEmpty) return;
+    _snapBackTimer?.cancel();
+    _zoomAnimationController?.stop();
+    final target = steppedMediaZoom(
+      _transformationController.value,
+      viewport,
+      widget.inputZoom!.direction,
+      maxScale: MediaViewerConstants.maxImageZoom,
+    );
+    _transformationController.value = _clampImageMatrix(
+      matrix: target,
+      vw: viewport.width,
+      vh: viewport.height,
+      cW: _activeCanvasWidth ?? viewport.width,
+      cH: _activeCanvasHeight ?? viewport.height,
+    );
+    widget.onZoomChanged(!_isZoomed);
   }
 
   Matrix4 _getBaselineMatrix(BoxConstraints constraints) {
@@ -317,6 +348,7 @@ class _ImagePageItemState extends State<ImagePageItem>
 
   @override
   void dispose() {
+    widget.inputZoom?.removeListener(_stepInputZoom);
     _brightnessHudTimer?.cancel();
     _snapBackTimer?.cancel();
     _zoomAnimationController?.dispose();
@@ -735,6 +767,8 @@ bool _isClampingMatrix = false;
             ),
           );
 
+          imageContent = MediaPointerRegion(child: imageContent);
+
           final Widget coreImageWidget = !widget.enableZoom
               ? GestureDetector(
                   behavior: HitTestBehavior.translucent,
@@ -800,6 +834,7 @@ bool _isClampingMatrix = false;
                         _activeCanvasWidth = canvasWidth;
                         _activeCanvasHeight = canvasHeight;
                         return InteractiveViewer(
+                          scaleFactor: MediaInputScope.wheelScaleFactor(context),
                           transformationController: _transformationController,
                           maxScale: MediaViewerConstants.maxImageZoom,
                           minScale: _effectiveMinZoomScale,

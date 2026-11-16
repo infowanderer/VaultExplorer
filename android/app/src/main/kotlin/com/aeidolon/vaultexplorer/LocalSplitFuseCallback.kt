@@ -742,7 +742,7 @@ class SplitFuseCallback(
     private fun mirrorDirFor(): File {
         var dir = mirrorDir
         if (dir == null) {
-            dir = File(context.cacheDir, "split_rw_mirror_${System.identityHashCode(this)}").apply { mkdirs() }
+            dir = com.aeidolon.vaultexplorer.privacy.PlaintextScratch.file(context.cacheDir, "split_rw_mirror_${System.identityHashCode(this)}").apply { mkdirs() }
             mirrorDir = dir
         }
         return dir

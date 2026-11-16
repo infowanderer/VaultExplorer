@@ -6,7 +6,13 @@
 
 Mount, browse, and manage encrypted containers on Android without a PC.
 
-VaultExplorer opens VeraCrypt, LUKS, BitLocker, VHD/VHDX, Cryptomator, gocryptfs, and CryFS volumes. A native C++ engine decrypts in memory where possible, and the app has no internet permission. Operations that need a scratch file (video recording, exports, archive work) use the app's private cache and zero-wipe it afterwards.
+VaultExplorer opens VeraCrypt, LUKS, BitLocker, VHD/VHDX, Cryptomator, gocryptfs, and CryFS volumes. A native C++ engine decrypts in memory where possible, and the release app has no internet permission. This integration branch enforces a strict plaintext-scratch policy: scratch-dependent recording, archive and edit-export actions are blocked rather than writing a plaintext cache copy. See [privacy boundaries](docs/media-organizer/PLAINTEXT-WRITES.md).
+
+The Android **Media Organizer Preview** now includes a protected photo workflow:
+named destinations, staged verified transfers, guarded Trash/undo/recovery, saved
+reviews, stars and tags. See [workflow, limitations and roadmap](docs/media-organizer/PHOTO-WORKFLOW.md).
+The inherited host feature list below does not mean every scratch-dependent tool
+is enabled in this privacy-focused preview.
 
 ## Screenshots
 
@@ -70,10 +76,19 @@ Filesystems: FAT12/16/32, exFAT, NTFS, ext2/3/4.
 - **Check & Repair** — diagnose header or filesystem issues
 - **Header Backup** — back up and restore a container's header (or a folder vault's config file)
 
+## Development branch status
+
+This branch contains an experimental tablet photo organizer and strict privacy
+hardening. The upstream release APKs linked below do **not** contain these changes.
+Scratch-dependent archive, recording and edit-export workflows are intentionally
+blocked. Review [the privacy report](docs/media-organizer/PLAINTEXT-WRITES.md) for
+metadata migration, limitations and checks before using a development build.
+An isolated, test-signed ARM64 release preview now builds; see [the tablet preview notes](docs/media-organizer/TABLET-PREVIEW.md). Real tablet testing is still required.
+
 ## Security & privacy
 
 - No `INTERNET` permission
-- Decryption and re-encryption happen in memory. Scratch files stay in the app's private cache, are zero-wiped and deleted when done, and leftovers from a crash are wiped at next launch
+- Reviewed plaintext staging paths now stream in bounded memory or fail closed. CryFS pending-write scratch uses bounded anonymous RAM; workflows still requiring plaintext scratch are blocked. Device-encrypted metadata can remain outside a vault. This is not a complete guarantee against OS artifacts or plaintext logging; see the privacy report.
 - Master lock via password, PIN, pattern, or biometrics. After the 5th failed attempt the lockout starts at 30 seconds and grows by 30 seconds per further failure, up to 5 minutes, and survives force-kills. Individual containers can be unlocked by password, remembered password, biometrics, pattern, or PIN. Biometric unlock, for the master lock and for each vault, turns itself off and falls back to the password (dropping a vault's saved credentials) if a new fingerprint or face is enrolled on the device. Removing the master password requires the master password itself. Saved credentials are never shown in plain text, and PIM values are obfuscated during unlock
 - Optional key caching in the Android Keystore (AES-GCM, hardware-backed where supported)
 - Task-switcher previews are blocked and the screen is blanked when the app is backgrounded. Screenshot blocking (`FLAG_SECURE`) is on by default and can be turned off in Settings
@@ -97,7 +112,7 @@ cd VaultExplorer
 .flutter/bin/flutter build apk --release
 ```
 
-Flutter is vendored as a pinned git submodule (`.flutter/`). If you cloned without `--recurse-submodules`, run `git submodule update --init`. Requirements: Android SDK 26+, Java 21, and CMake 3.18+. Gradle installs the NDK (r28c), and CMake builds the native C++ dependencies. Versions and licenses: [NOTICE.md](NOTICE.md).
+Flutter is vendored as a pinned git submodule (`.flutter/`). If you cloned without `--recurse-submodules`, run `git submodule update --init`. Build requirements: Android SDK Platform 37.0, Build-Tools 37.0.0, Java 21, and CMake 3.18+. API 26 is the minimum device version, not the compile SDK. Gradle installs the NDK (r28c), and CMake builds the native C++ dependencies. Versions and licenses: [NOTICE.md](NOTICE.md).
 
 ## Donate
 

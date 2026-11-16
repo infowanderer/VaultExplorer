@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "../privacy/ram_scratch.h"
 #include "fv_cryfs.h"
 #include "fv_util.h"
 
@@ -500,45 +501,9 @@ public:
     }
 
 private:
-    // Scratch file for incremental writes: unlinked right after creation so the
-    // plaintext never has a name on disk.
-    class Scratch {
-    public:
-        explicit Scratch(FdFile f) : f_(std::move(f)) {}
-        bool writeAt(const uint8_t* d, size_t n, int64_t off) {
-            std::lock_guard<std::mutex> g(mu_);
-            size_t done = 0;
-            while (done < n) {
-                ssize_t r = ::pwrite(f_.fd(), d + done, n - done, (off_t)(off + (int64_t)done));
-                if (r < 0) { if (errno == EINTR) continue; return false; }
-                done += (size_t)r;
-            }
-            return true;
-        }
-        int64_t size() { std::lock_guard<std::mutex> g(mu_); return f_.size(); }
-        int fd() const { return f_.fd(); }
-        Bytes readAt(int64_t off, int len) {
-            std::lock_guard<std::mutex> g(mu_);
-            Bytes b((size_t)std::max(len, 0));
-            int64_t r = f_.readAt(b.data(), b.size(), off);
-            b.resize(r > 0 ? (size_t)r : 0);
-            return b;
-        }
-    private:
-        FdFile f_;
-        std::mutex mu_;
-    };
-
-    std::shared_ptr<Scratch> makeScratch() {
-        std::string dir = tempDir_.empty() ? "/tmp" : tempDir_;
-        std::string tmpl = dir + "/cryfs_write_XXXXXX";
-        std::vector<char> buf(tmpl.begin(), tmpl.end());
-        buf.push_back(0);
-        int fd = ::mkstemp(buf.data());
-        if (fd < 0) throw Error(Err::Io, "cannot create scratch file");
-        ::unlink(buf.data());
-        return std::make_shared<Scratch>(FdFile(fd));
-    }
+    // Bounded anonymous RAM, never an unlinked filesystem-backed plaintext file.
+    using Scratch = vault_privacy::RamScratch;
+    std::shared_ptr<Scratch> makeScratch() { return std::make_shared<Scratch>(); }
 
     static Bytes readScratch(Scratch& s, int64_t offset, int length) {
         if (offset < 0 || offset >= s.size()) return Bytes();

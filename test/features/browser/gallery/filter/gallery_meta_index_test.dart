@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -11,6 +12,7 @@ Uint8List _jpegWithSize(int w, int h) => Uint8List.fromList([
 
 class _MemoryStorage implements GalleryMetaStorage {
   final Map<int, String> files = {};
+  final saved = Completer<void>();
   int saves = 0;
 
   @override
@@ -20,6 +22,7 @@ class _MemoryStorage implements GalleryMetaStorage {
   Future<bool> save(int volId, String json) async {
     files[volId] = json;
     saves++;
+    if (!saved.isCompleted) saved.complete();
     return true;
   }
 }
@@ -34,29 +37,32 @@ Future<void> _idle(GalleryMetaIndex index) async {
 
 void main() {
   group('GalleryMetaIndex', () {
-    test('reads queued photos and answers lookups for the same size and date', () async {
-      final reads = <String>[];
-      final index = GalleryMetaIndex(
-        readHeader: (vol, path, length) async {
-          reads.add(path);
-          return _jpegWithSize(400, 300);
-        },
-        notifyEvery: const Duration(milliseconds: 1),
-      );
-      await index.ensure([
-        const GalleryIndexRequest(1, 'a/1.jpg', 1000, 50),
-        const GalleryIndexRequest(1, 'a/2.jpg', 1000, 50),
-        const GalleryIndexRequest(1, 'a/clip.mp4', 1000, 50), // not parsed
-      ]);
-      await _idle(index);
+    test(
+      'reads queued photos and answers lookups for the same size and date',
+      () async {
+        final reads = <String>[];
+        final index = GalleryMetaIndex(
+          readHeader: (vol, path, length) async {
+            reads.add(path);
+            return _jpegWithSize(400, 300);
+          },
+          notifyEvery: const Duration(milliseconds: 1),
+        );
+        await index.ensure([
+          const GalleryIndexRequest(1, 'a/1.jpg', 1000, 50),
+          const GalleryIndexRequest(1, 'a/2.jpg', 1000, 50),
+          const GalleryIndexRequest(1, 'a/clip.mp4', 1000, 50), // not parsed
+        ]);
+        await _idle(index);
 
-      expect(reads.length, 2);
-      expect(index.lookup(1, 'a/1.jpg', 1000, 50)?.width, 400);
-      expect(index.lookup(1, 'a/1.jpg', 999, 50), isNull); // size changed
-      expect(index.lookup(1, 'a/1.jpg', 1000, 51), isNull); // date changed
-      expect(index.lookup(1, 'a/clip.mp4', 1000, 50), isNull);
-      index.dispose();
-    });
+        expect(reads.length, 2);
+        expect(index.lookup(1, 'a/1.jpg', 1000, 50)?.width, 400);
+        expect(index.lookup(1, 'a/1.jpg', 999, 50), isNull); // size changed
+        expect(index.lookup(1, 'a/1.jpg', 1000, 51), isNull); // date changed
+        expect(index.lookup(1, 'a/clip.mp4', 1000, 50), isNull);
+        index.dispose();
+      },
+    );
 
     test('does not read a photo twice', () async {
       var reads = 0;
@@ -75,13 +81,18 @@ void main() {
       index.dispose();
     });
 
-    test('an unreadable file stays unknown instead of being recorded as empty', () async {
-      final index = GalleryMetaIndex(readHeader: (vol, path, length) async => null);
-      await index.ensure([const GalleryIndexRequest(1, 'x.jpg', 500, 1)]);
-      await _idle(index);
-      expect(index.lookup(1, 'x.jpg', 500, 1), isNull);
-      index.dispose();
-    });
+    test(
+      'an unreadable file stays unknown instead of being recorded as empty',
+      () async {
+        final index = GalleryMetaIndex(
+          readHeader: (vol, path, length) async => null,
+        );
+        await index.ensure([const GalleryIndexRequest(1, 'x.jpg', 500, 1)]);
+        await _idle(index);
+        expect(index.lookup(1, 'x.jpg', 500, 1), isNull);
+        index.dispose();
+      },
+    );
 
     test('is saved and loaded back by a later session', () async {
       final storage = _MemoryStorage();
@@ -91,6 +102,9 @@ void main() {
       );
       await first.ensure([const GalleryIndexRequest(7, 'p.jpg', 321, 9)]);
       await _idle(first);
+      // Encoding runs in an isolate. Wait for persistence, not a fixed 20 ms
+      // window that can expire under the full suite's parallel load.
+      await storage.saved.future.timeout(const Duration(seconds: 10));
       first.dispose();
       expect(storage.saves, greaterThan(0));
 

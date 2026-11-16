@@ -1,5 +1,7 @@
 package com.aeidolon.vaultexplorer.handlers
 
+import com.aeidolon.vaultexplorer.ProviderAuthorities
+
 import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.provider.DocumentsContract
@@ -179,7 +181,7 @@ class CompositeContainerHandlers(
                         ContainerSessionRegistry.applyAutoMountFolders(targetVolId, autoMountFolders)
                         if (docProvider) {
                             activity.contentResolver.notifyChange(
-                                DocumentsContract.buildRootsUri("com.aeidolon.vaultexplorer.documents"), null
+                                DocumentsContract.buildRootsUri(ProviderAuthorities.DOCUMENTS), null
                             )
                         }
                         result.success(

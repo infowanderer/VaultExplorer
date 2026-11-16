@@ -109,6 +109,7 @@ PreferredSizeWidget buildBrowserAppBar(
   bool showBackButton = true,
   Widget Function(Widget title)? wrapTitle,
   VoidCallback? onOpenStorageSwitcher,
+  VoidCallback? onSortPhotos,
 }) {
   final allItems = filteredItems;
   final cs = Theme.of(context).colorScheme;
@@ -795,6 +796,12 @@ PreferredSizeWidget buildBrowserAppBar(
       ),
     ),
     actions: [
+      if (onSortPhotos != null)
+        IconButton(
+          tooltip: 'Sort photos (preview)',
+          onPressed: onSortPhotos,
+          icon: const Icon(Icons.photo_library_outlined),
+        ),
       const AppBarTransferButton(),
       if (isLandscape && showActionBar) ...[
         ...toolbarConfig.visible

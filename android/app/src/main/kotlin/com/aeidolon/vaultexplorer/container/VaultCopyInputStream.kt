@@ -35,13 +35,26 @@ internal class VaultCopyInputStream(
 
     private var chunk: ByteArray? = null
     private var chunkPos = 0
+    private var closed = false
+
+    private fun requireReadable() {
+        if (closed) throw IOException("copy stream closed")
+        if (isCancelled()) {
+            close()
+            throw IOException("copy cancelled")
+        }
+    }
 
     override fun read(): Int {
         val one = ByteArray(1)
-        return if (read(one, 0, 1) <= 0) -1 else one[0].toInt() and 0xFF
+        return try { if (read(one, 0, 1) <= 0) -1 else one[0].toInt() and 0xFF }
+        finally { one.fill(0) }
     }
 
+    @Synchronized
     override fun read(b: ByteArray, off: Int, len: Int): Int {
+        if (off < 0 || len < 0 || off > b.size - len) throw IndexOutOfBoundsException()
+        requireReadable()
         if (len == 0) return 0
         if (position >= total) return -1
 
@@ -63,9 +76,10 @@ internal class VaultCopyInputStream(
             it.fill(0)
             chunk = null
         }
-        if (isCancelled()) throw IOException("copy cancelled at offset $position of $total")
         val want = minOf(chunkSize.toLong(), total - position).toInt()
         val fetched = readChunk(position, want)
+        try { requireReadable() }
+        catch (error: IOException) { fetched?.fill(0); throw error }
         if (fetched == null || fetched.isEmpty()) {
             throw IOException("short read at offset $position of $total")
         }
@@ -74,9 +88,15 @@ internal class VaultCopyInputStream(
         return fetched
     }
 
-    override fun available(): Int = chunk?.let { it.size - chunkPos } ?: 0
+    @Synchronized
+    override fun available(): Int {
+        requireReadable()
+        return chunk?.let { it.size - chunkPos } ?: 0
+    }
 
+    @Synchronized
     override fun close() {
+        closed = true
         chunk?.fill(0)
         chunk = null
     }

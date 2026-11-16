@@ -1,5 +1,7 @@
 package com.aeidolon.vaultexplorer.handlers
 
+import com.aeidolon.vaultexplorer.ProviderAuthorities
+
 import android.net.Uri
 import android.os.Handler
 import android.os.HandlerThread
@@ -786,7 +788,7 @@ class VaultUnlockHandlers(
                 session.documentProvider = docProvider
                 activity.contentResolver.notifyChange(
                     DocumentsContract.buildRootsUri(
-                        "com.aeidolon.vaultexplorer.documents"), null)
+                        ProviderAuthorities.DOCUMENTS), null)
                 result.success(true)
             } else {
                 result.success(false)

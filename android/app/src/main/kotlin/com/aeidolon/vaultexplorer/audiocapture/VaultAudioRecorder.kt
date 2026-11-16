@@ -119,11 +119,13 @@ class VaultAudioRecorder(private val context: Context) {
      *  Throws if one is already in progress, or if the platform refuses to
      *  open the microphone. */
     fun start(params: AudioRecordingParams = AudioRecordingParams.DEFAULT, segmentSeconds: Int = 0) {
+        com.aeidolon.vaultexplorer.privacy.PlaintextScratch.requireAllowed()
+
         synchronized(lock) {
             check(state == State.IDLE) { "already recording" }
         }
         discardFinishedParts()
-        val temp = File.createTempFile(AUDIO_TEMP_PREFIX, AUDIO_TEMP_SUFFIX, context.cacheDir)
+        val temp = com.aeidolon.vaultexplorer.privacy.PlaintextScratch.tempFile(AUDIO_TEMP_PREFIX, AUDIO_TEMP_SUFFIX, context.cacheDir)
         val rec = createMediaRecorder()
         try {
             errorWhat = null
@@ -343,7 +345,7 @@ class VaultAudioRecorder(private val context: Context) {
                 synchronized(lock) {
                     if (recorder === rec && pendingNextFile == null) {
                         val next = try {
-                            File.createTempFile(AUDIO_TEMP_PREFIX, AUDIO_TEMP_SUFFIX, context.cacheDir)
+                            com.aeidolon.vaultexplorer.privacy.PlaintextScratch.tempFile(AUDIO_TEMP_PREFIX, AUDIO_TEMP_SUFFIX, context.cacheDir)
                         } catch (e: Exception) {
                             VeLog.e(TAG, e) { "could not create the next part file" }
                             null

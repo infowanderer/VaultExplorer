@@ -18,12 +18,14 @@ void main() {
     test('generateDicewarePassphrase produces correct word count and entropy', () async {
       final res = await KeyfilePassphraseGeneratorService.generateDicewarePassphrase(
         wordCount: 6,
-        separator: '-',
+        // EFF includes hyphenated words; use an unambiguous separator here.
+        separator: ' ',
         casing: PasswordCasing.lowercase,
       );
 
-      final words = res.passphrase.split('-');
+      final words = res.passphrase.split(' ');
       expect(words.length, equals(6));
+      expect(words, everyElement(isIn(await KeyfilePassphraseGeneratorService.loadWordlist())));
       expect(res.entropyBits, greaterThanOrEqualTo(77.0));
     });
 

@@ -383,7 +383,7 @@ class ThumbnailHandlers(
                                         val retryPositionMs = (durationMs * framePosition.coerceIn(0.05, 0.90))
                                             .toLong()
                                             .coerceAtLeast(1L)
-                                        VeLog.d(TAG) { "ExoPlayer frame at 0 looked blank, retrying at ${retryPositionMs}ms" }
+                                        VeLog.d(TAG) { "Opening video frame looked blank; retrying extraction" }
                                         bitmap.recycle()
                                         player?.seekTo(retryPositionMs)
                                         Handler(Looper.getMainLooper()).postDelayed({
@@ -446,14 +446,14 @@ class ThumbnailHandlers(
                     }
 
                     override fun onPlayerError(error: PlaybackException) {
-                        VeLog.w(TAG) { "ExoPlayer thumbnail extraction error: ${error.message}" }
+                        VeLog.w(TAG) { "ExoPlayer thumbnail extraction failed" }
                         latch.countDown()
                     }
                 })
 
                 player.prepare()
             } catch (e: Exception) {
-                VeLog.w(TAG) { "ExoPlayer thumbnail extraction setup failed: ${e.message}" }
+                VeLog.w(TAG) { "ExoPlayer thumbnail setup failed" }
                 latch.countDown()
             } finally {
                 // 4s rather than 3s: a blank first frame costs one extra
@@ -522,10 +522,10 @@ class ThumbnailHandlers(
         framePosition: Double = 0.12,
     ): VideoFrameResult? {
         if (isPlaybackActive) {
-            VeLog.d(TAG) { "Playback active: attempting software MediaCodec frame extraction (len=${fileName.length})" }
+            VeLog.d(TAG) { "Playback active; attempting software frame extraction" }
             val swResult = extractVideoFrameSoftware(uriString, fileName, volId, targetSize, quality, isLocalStorage, localFile, explicitTimeUs, strategy, framePosition)
             if (swResult != null) return swResult
-            VeLog.d(TAG) { "Software extraction unavailable or failed while playing (len=${fileName.length})" }
+            VeLog.d(TAG) { "Software extraction unavailable during playback" }
             return null
         }
 
@@ -610,8 +610,8 @@ class ThumbnailHandlers(
 
             // 1. If hardware decoder capacity is full, retry at 180p native fallback
             if (isCodecResourceError(e)) {
-                VeLog.w(TAG) { "Primary frame extraction hit codec resource limit, retrying at ${FALLBACK_TARGET_SIZE}p: ${e.message}" }
-                val fallbackResult = extractFrameFallback(uriString, fileName, volId, quality, isLocalStorage, localFile)
+                VeLog.w(TAG) { "Frame extraction hit a codec limit; retrying a bounded preview" }
+                val fallbackResult = extractFrameFallback(uriString, fileName, volId, quality, isLocalStorage, localFile, explicitTimeUs)
                 if (fallbackResult != null) return fallbackResult
             }
 
@@ -620,7 +620,7 @@ class ThumbnailHandlers(
             if (swResult != null) return swResult
 
             // 3. For unsupported formats (like .flv, .wmv, .webm), fall back to ExoPlayer
-            VeLog.w(TAG) { "Native retriever failed for $fileName (${e.message}), falling back to ExoPlayer" }
+            VeLog.w(TAG) { "Native frame extraction failed; trying ExoPlayer" }
             return extractVideoFrameExoPlayer(uriString, fileName, volId, targetSize, quality, isLocalStorage, localFile, explicitTimeUs, strategy, framePosition)
         } finally {
             runCatching { retriever?.release() }
@@ -640,6 +640,7 @@ class ThumbnailHandlers(
         quality: Int,
         isLocalStorage: Boolean = false,
         localFile: java.io.File? = null,
+        explicitTimeUs: Long? = null,
     ): VideoFrameResult? {
         var fallbackRetriever: MediaMetadataRetriever? = null
         try {
@@ -655,10 +656,10 @@ class ThumbnailHandlers(
                 .extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
                 ?.toLongOrNull() ?: 10_000L
             val durationUs = durationMs * 1000L
-            val timeUs = VideoThumbnailCoordinator.getInitialThumbnailTimeUs(durationUs)
+            val timeUs = explicitTimeUs ?: VideoThumbnailCoordinator.getInitialThumbnailTimeUs(durationUs)
 
             var frame = tryExtractFrame(fallbackRetriever, timeUs, FALLBACK_TARGET_SIZE)
-            if (frame != null && VideoThumbnailCoordinator.isLikelyBlankFrame(frame)) {
+            if (explicitTimeUs == null && frame != null && VideoThumbnailCoordinator.isLikelyBlankFrame(frame)) {
                 val alternate = tryAlternateFrameIfBlank(fallbackRetriever, durationMs, FALLBACK_TARGET_SIZE)
                 if (alternate != null) {
                     frame.recycle()
@@ -670,7 +671,7 @@ class ThumbnailHandlers(
             }
             return null
         } catch (e2: Exception) {
-            VeLog.e(TAG) { "Fallback frame extraction also failed: ${e2.message}" }
+            VeLog.e(TAG) { "Fallback frame extraction failed" }
             return null
         } finally {
             runCatching { fallbackRetriever?.release() }
@@ -738,7 +739,7 @@ class ThumbnailHandlers(
             val candidate = runCatching { tryExtractFrame(retriever, candidateUs, targetSize) }.getOrNull()
                 ?: continue
             if (!VideoThumbnailCoordinator.isLikelyBlankFrame(candidate)) {
-                VeLog.d(TAG) { "Blank frame at time 0 replaced with frame at ${(fraction * 100).toInt()}% of duration" }
+                VeLog.d(TAG) { "Blank opening frame replaced with an alternate preview" }
                 return candidate
             }
             candidate.recycle()
@@ -1105,7 +1106,7 @@ class ThumbnailHandlers(
             ImageDecodeGuard.admit(activity, rawWidth, rawHeight, header)
         } catch (e: ImageDecodeGuard.RefusedException) {
             inputStream.close()
-            VeLog.w(TAG) { "Not fully decoding ${rawWidth}x$rawHeight image: ${e.message}" }
+            VeLog.w(TAG) { "Full image decoding refused; trying a bounded preview" }
             // A progressive JPEG too big to decode normally can still be
             // previewed from its first (DC) scan alone: 1/8 scale, from a
             // small slice of the file, in memory proportional to the output.
@@ -1113,7 +1114,7 @@ class ThumbnailHandlers(
                 header, targetSize, uriString, fileName, volId, isLocalStorage, localFile,
             )
             if (dcPreview != null) {
-                VeLog.w(TAG) { "Using DC-scan preview (${dcPreview.width}x${dcPreview.height}) instead" }
+                VeLog.w(TAG) { "Using a bounded DC-scan preview" }
                 return finishThumbnail(
                     dcPreview, exifOrientation, rawWidth, rawHeight, targetSize, quality, preserveAlpha,
                 )
@@ -1144,7 +1145,7 @@ class ThumbnailHandlers(
             } catch (e: OutOfMemoryError) {
                 // One coarser retry (half the linear resolution) before giving
                 // up; a fresh stream is needed since this one is mid-decode.
-                VeLog.w(TAG) { "OOM decoding ${rawWidth}x$rawHeight at sample $inSampleSize; retrying coarser" }
+                VeLog.w(TAG) { "Image decoding ran out of memory; retrying a coarser preview" }
                 inputStream.close()
                 System.gc()
                 val retryStream = openImageInputStream(uriString, fileName, volId, isLocalStorage, localFile)
@@ -1168,7 +1169,7 @@ class ThumbnailHandlers(
             // OutOfMemoryError is an Error, not an Exception: without this it
             // sails past every `catch (e: Exception)` up the stack and kills
             // the whole app instead of just failing this one decode.
-            VeLog.w(TAG) { "Out of memory decoding ${rawWidth}x$rawHeight image" }
+            VeLog.w(TAG) { "Image thumbnail decoding ran out of memory" }
             return ImageThumbnailOutcome.Failure(
                 ImageDecodeGuard.CODE_OUT_OF_MEMORY,
                 "Not enough memory to decode image",
@@ -1217,7 +1218,7 @@ class ThumbnailHandlers(
 
             ImageThumbnailOutcome.Success(bytes, width, height)
         } catch (e: OutOfMemoryError) {
-            VeLog.w(TAG) { "Out of memory finishing ${rawWidth}x$rawHeight thumbnail" }
+            VeLog.w(TAG) { "Image thumbnail finishing ran out of memory" }
             ImageThumbnailOutcome.Failure(
                 ImageDecodeGuard.CODE_OUT_OF_MEMORY,
                 "Not enough memory to decode image",
@@ -1248,7 +1249,7 @@ class ThumbnailHandlers(
             VeLog.w(TAG) { "Out of memory building DC-scan preview" }
             null
         } catch (e: Exception) {
-            VeLog.w(TAG) { "DC-scan preview failed: ${e.message}" }
+            VeLog.w(TAG) { "DC-scan preview failed" }
             null
         }
     }
@@ -1527,7 +1528,7 @@ class ThumbnailHandlers(
         val permit = try {
             ImageDecodeGuard.admit(activity, rawWidth, rawHeight, header)
         } catch (e: ImageDecodeGuard.RefusedException) {
-            VeLog.w(TAG) { "Not decoding ${rawWidth}x$rawHeight embedded image: ${e.message}" }
+            VeLog.w(TAG) { "Embedded image decoding refused" }
             throw BytesThumbnailException(e.code, e.message ?: "Image is too large to decode")
         }
 
@@ -1546,7 +1547,7 @@ class ThumbnailHandlers(
             val decodedOrNull: Bitmap? = try {
                 decodeAt(inSampleSize)
             } catch (e: OutOfMemoryError) {
-                VeLog.w(TAG) { "OOM decoding ${rawWidth}x$rawHeight at sample $inSampleSize; retrying coarser" }
+                VeLog.w(TAG) { "Image decoding ran out of memory; retrying a coarser preview" }
                 System.gc()
                 decodeAt(inSampleSize * 2)
             }
@@ -1574,7 +1575,7 @@ class ThumbnailHandlers(
                     throw BytesThumbnailException(outcome.code, outcome.message)
             }
         } catch (e: OutOfMemoryError) {
-            VeLog.w(TAG) { "Out of memory decoding ${rawWidth}x$rawHeight embedded image" }
+            VeLog.w(TAG) { "Embedded image decoding ran out of memory" }
             throw BytesThumbnailException(ImageDecodeGuard.CODE_OUT_OF_MEMORY, "Not enough memory to decode image")
         } finally {
             permit.close()
@@ -1714,13 +1715,13 @@ class ThumbnailHandlers(
 
                 activity.runOnUiThread { result.success(bytes) }
             } catch (e: Exception) {
-                VeLog.w(TAG) { "handleGetApkIcon failed for $fileName: ${e.message}" }
+                VeLog.w(TAG) { "APK icon extraction failed" }
                 activity.runOnUiThread { result.error("APK_ICON_FAILED", e.message, null) }
             } finally {
                 try {
                     pfd?.close()
                 } catch (e: Exception) {
-                    VeLog.w(TAG) { "Error closing APK icon file descriptor for $fileName" }
+                    VeLog.w(TAG) { "APK icon descriptor close failed" }
                 }
             }
         }
@@ -1795,10 +1796,10 @@ class ThumbnailHandlers(
                 val out = encoded
                 activity.runOnUiThread { result.success(out) }
             } catch (e: OutOfMemoryError) {
-                VeLog.w(TAG) { "handleEncodeImage out of memory for ${width}x$height" }
+                VeLog.w(TAG) { "Image encoding ran out of memory" }
                 activity.runOnUiThread { result.error("ENCODE_OOM", "Not enough memory to encode image", null) }
             } catch (e: Exception) {
-                VeLog.w(TAG) { "handleEncodeImage failed for ${width}x$height: ${e.message}" }
+                VeLog.w(TAG) { "Image encoding failed" }
                 activity.runOnUiThread { result.error("ENCODE_FAILED", e.message, null) }
             } finally {
                 bitmap?.recycle()
@@ -1904,7 +1905,7 @@ class ThumbnailHandlers(
             }
 
             val swCodecName = findSoftwareDecoderName(mimeType) ?: return null
-            VeLog.d(TAG) { "Using software video decoder '$swCodecName' for thumbnail (len=${fileName.length})" }
+            VeLog.d(TAG) { "Using a software video decoder for thumbnail extraction" }
 
             extractor.selectTrack(videoTrackIndex)
 
@@ -1948,7 +1949,7 @@ class ThumbnailHandlers(
             }
             return null
         } catch (e: Exception) {
-            VeLog.w(TAG) { "Software MediaCodec extraction failed (len=${fileName.length}): ${e.message}" }
+            VeLog.w(TAG) { "Software frame extraction failed" }
             return null
         } finally {
             runCatching {

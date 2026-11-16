@@ -41,6 +41,7 @@ class MediaViewerBottomControls extends StatelessWidget {
   final bool isCarouselVisible;
   final VoidCallback? onMenuOpened;
   final VoidCallback? onMenuClosed;
+  final Widget? organizationControls;
 
   const MediaViewerBottomControls({
     super.key,
@@ -65,6 +66,7 @@ class MediaViewerBottomControls extends StatelessWidget {
     this.isCarouselVisible = false,
     this.onMenuOpened,
     this.onMenuClosed,
+    this.organizationControls,
   });
 
   Widget _buildActionItem(
@@ -238,6 +240,7 @@ class MediaViewerBottomControls extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (organizationControls != null && showUI) organizationControls!,
           if (!isImage && toolbarConfig.showProgressBar) ...[
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
@@ -265,14 +268,14 @@ class MediaViewerBottomControls extends StatelessWidget {
   }
 
   Widget _scrubBar() => VideoScrubProgressBar(
-        playbackManager: playbackManager,
-        videoProgressNotifier: videoProgressNotifier,
-        abLoopNotifier: abLoopNotifier,
-        onShowUIChanged: onShowUIChanged,
-        onStartHideTimer: onStartHideTimer,
-        previewStyle: toolbarConfig.scrubPreviewStyle,
-        previewHost: scrubPreviewHost,
-      );
+    playbackManager: playbackManager,
+    videoProgressNotifier: videoProgressNotifier,
+    abLoopNotifier: abLoopNotifier,
+    onShowUIChanged: onShowUIChanged,
+    onStartHideTimer: onStartHideTimer,
+    previewStyle: toolbarConfig.scrubPreviewStyle,
+    previewHost: scrubPreviewHost,
+  );
 
   Widget _buildTransparentDock(
     BuildContext context,

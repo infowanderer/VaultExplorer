@@ -18,7 +18,10 @@ VaultMarksStore _make(_MemIo io, _MemSecure secure, File localFile) =>
     VaultMarksStore(
       io: io,
       secure: secure,
-      local: DecoyLocalMarksService(fileLocator: () async => localFile),
+      local: DecoyLocalMarksService(
+        fileLocator: () async => localFile,
+        secure: secure,
+      ),
     );
 
 MountedContainer _container({
@@ -105,6 +108,9 @@ class _MemIo implements VaultFileIoApi {
 class _MemSecure extends AppSecureStorage {
   final Map<String, String> data = {};
   bool writeSucceeds = true;
+  @override
+  Future<bool> containsKey({required String key}) async =>
+      data.containsKey(key);
 
   @override
   Future<String?> read({required String key}) async => data[key];
@@ -157,13 +163,15 @@ void registerVaultMarksStoreScenarios(
   });
 
   group('a writable vault', () {
-    test('nothing stored yet loads as empty, and loading writes nothing',
-        () async {
-      expect((await store.load(_container())).isEmpty, isTrue);
-      io.dirs.add('.vaultexplorer'); // folder exists, file does not
-      expect((await store.load(_container())).isEmpty, isTrue);
-      expect(io.writes, isEmpty);
-    });
+    test(
+      'nothing stored yet loads as empty, and loading writes nothing',
+      () async {
+        expect((await store.load(_container())).isEmpty, isTrue);
+        io.dirs.add('.vaultexplorer'); // folder exists, file does not
+        expect((await store.load(_container())).isEmpty, isTrue);
+        expect(io.writes, isEmpty);
+      },
+    );
 
     test('saves inside the vault and loads back what was saved', () async {
       final marks = VaultMarks(
@@ -184,26 +192,28 @@ void registerVaultMarksStoreScenarios(
     test('the kind of each bookmark is stored with it', () async {
       await store.save(_container(), VaultMarks().withBookmarks([_a, _b]));
 
-      final json = jsonDecode(
-        utf8.decode(io.files['.vaultexplorer/marks.json']!),
-      ) as Map<String, dynamic>;
+      final json =
+          jsonDecode(utf8.decode(io.files['.vaultexplorer/marks.json']!))
+              as Map<String, dynamic>;
       expect(json['bookmarks'], [
         {'path': 'Docs/a.txt', 'dir': false},
         {'path': 'Photos', 'dir': true},
       ]);
     });
 
-    test('an unparseable file counts as empty, and a save replaces it',
-        () async {
-      io.dirs.add('.vaultexplorer');
-      io.files['.vaultexplorer/marks.json'] = Uint8List.fromList(
-        utf8.encode('{not json'),
-      );
+    test(
+      'an unparseable file counts as empty, and a save replaces it',
+      () async {
+        io.dirs.add('.vaultexplorer');
+        io.files['.vaultexplorer/marks.json'] = Uint8List.fromList(
+          utf8.encode('{not json'),
+        );
 
-      expect((await store.load(_container())).isEmpty, isTrue);
-      await store.save(_container(), VaultMarks().withBookmarks([_a]));
-      expect((await store.load(_container())).bookmarkPaths, ['Docs/a.txt']);
-    });
+        expect((await store.load(_container())).isEmpty, isTrue);
+        await store.save(_container(), VaultMarks().withBookmarks([_a]));
+        expect((await store.load(_container())).bookmarkPaths, ['Docs/a.txt']);
+      },
+    );
 
     test('if the vault cannot be reached, load throws instead of pretending '
         'there is nothing', () async {
@@ -262,8 +272,10 @@ void registerVaultMarksStoreScenarios(
 
     test('a failed device write is reported', () async {
       secure.writeSucceeds = false;
-      expect(await store.save(readOnly, VaultMarks().withBookmarks([_a])),
-          isFalse);
+      expect(
+        await store.save(readOnly, VaultMarks().withBookmarks([_a])),
+        isFalse,
+      );
     });
   });
 
@@ -277,29 +289,33 @@ void registerVaultMarksStoreScenarios(
 
       expect((await store.load(phone)).bookmarkPaths, ['Docs/a.txt']);
       expect((await store.load(sdCard)).bookmarkPaths, ['Photos']);
-      // Not in a vault, not in the Keystore.
+      // Protected locally rather than written into a plain JSON file.
       expect(io.writes, isEmpty);
-      expect(secure.data, isEmpty);
+      expect(secure.data['private_metadata_local_marks_v1'], isNotNull);
+      expect(localFile.existsSync(), isFalse);
     });
 
     test('marks survive a restart', () async {
       await store.save(phone, VaultMarks().withBookmarks([_a]));
 
-      final afterRestart = make(_MemIo(), _MemSecure(), localFile);
+      final afterRestart = make(_MemIo(), secure, localFile);
       expect((await afterRestart.load(phone)).bookmarkPaths, ['Docs/a.txt']);
     });
 
-    test('emptying a location removes its entry and leaves the others',
-        () async {
-      await store.save(phone, VaultMarks().withBookmarks([_a]));
-      await store.save(sdCard, VaultMarks().withBookmarks([_b]));
+    test(
+      'emptying a location removes its entry and leaves the others',
+      () async {
+        await store.save(phone, VaultMarks().withBookmarks([_a]));
+        await store.save(sdCard, VaultMarks().withBookmarks([_b]));
 
-      await store.save(phone, VaultMarks.empty);
+        await store.save(phone, VaultMarks.empty);
 
-      final stored = jsonDecode(localFile.readAsStringSync()) as Map;
-      expect(stored.keys, ['/storage/ABCD-1234']);
-      expect((await store.load(sdCard)).bookmarkPaths, ['Photos']);
-    });
+        final stored =
+            jsonDecode(secure.data['private_metadata_local_marks_v1']!) as Map;
+        expect(stored.keys, ['/storage/ABCD-1234']);
+        expect((await store.load(sdCard)).bookmarkPaths, ['Photos']);
+      },
+    );
 
     test('concurrent saves from two locations do not lose either', () async {
       await Future.wait([
@@ -311,13 +327,19 @@ void registerVaultMarksStoreScenarios(
       expect((await store.load(sdCard)).bookmarkPaths, ['Photos']);
     });
 
-    test('a damaged file loads as empty and can be written again', () async {
-      localFile.writeAsStringSync('][');
+    test(
+      'a damaged legacy file is preserved and cannot be silently overwritten',
+      () async {
+        localFile.writeAsStringSync('][');
 
-      expect((await store.load(phone)).isEmpty, isTrue);
-      expect(await store.save(phone, VaultMarks().withBookmarks([_a])), isTrue);
-      expect((await store.load(phone)).bookmarkPaths, ['Docs/a.txt']);
-    });
+        expect((await store.load(phone)).isEmpty, isTrue);
+        expect(
+          await store.save(phone, VaultMarks().withBookmarks([_a])),
+          isFalse,
+        );
+        expect(localFile.readAsStringSync(), '][');
+      },
+    );
   });
 }
 

@@ -2,11 +2,35 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:vaultexplorer/data/services/app_secure_storage.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:vaultexplorer/core/api/vault_crypto_api.dart';
 import 'package:vaultexplorer/data/services/container_repository.dart';
 import 'package:vaultexplorer/data/services/derived_key_expiry_service.dart';
+
+class _MemorySecureStorage extends AppSecureStorage {
+  final values = <String, String>{};
+  @override
+  Future<String?> read({required String key}) async => values[key];
+  @override
+  Future<bool> containsKey({required String key}) async =>
+      values.containsKey(key);
+  @override
+  Future<bool> writeVerified({
+    required String key,
+    required String value,
+  }) async {
+    values[key] = value;
+    return true;
+  }
+
+  @override
+  Future<Map<String, String>> readAllWithPrefixes(
+    List<String> prefixes, {
+    List<String> excludePrefixes = const [],
+  }) async => {};
+}
 
 class _FakePathProviderPlatform extends PathProviderPlatform
     with MockPlatformInterfaceMixin {
@@ -79,26 +103,31 @@ void main() {
       expect(repo.received, isNull);
     });
 
-    test('switches caching off for the vaults whose keys were purged', () async {
-      final api = _FakeCryptoApi(['content://a', '/dev/bus/usb/001/002']);
-      final repo = _RecordingRepository(api, result: 2);
+    test(
+      'switches caching off for the vaults whose keys were purged',
+      () async {
+        final api = _FakeCryptoApi(['content://a', '/dev/bus/usb/001/002']);
+        final repo = _RecordingRepository(api, result: 2);
 
-      final changed = await DerivedKeyExpiryService(
-        cryptoApi: api,
-        repository: repo,
-      ).purgeExpired();
+        final changed = await DerivedKeyExpiryService(
+          cryptoApi: api,
+          repository: repo,
+        ).purgeExpired();
 
-      expect(changed, 2);
-      expect(repo.received, ['content://a', '/dev/bus/usb/001/002']);
-    });
+        expect(changed, 2);
+        expect(repo.received, ['content://a', '/dev/bus/usb/001/002']);
+      },
+    );
   });
 
   group('ContainerRepository.disableDerivedKeyCachingFor', () {
     late Directory tempDir;
+    late _MemorySecureStorage secure;
     late PathProviderPlatform originalPlatform;
 
     setUp(() {
       tempDir = Directory.systemTemp.createTempSync('container_repo_test_');
+      secure = _MemorySecureStorage();
       originalPlatform = PathProviderPlatform.instance;
       PathProviderPlatform.instance = _FakePathProviderPlatform(tempDir.path);
     });
@@ -118,8 +147,8 @@ void main() {
       '${tempDir.path}/containers_v2.json',
     ).writeAsStringSync(jsonEncode(records));
 
-    List<dynamic> onDisk() =>
-        jsonDecode(File('${tempDir.path}/containers_v2.json').readAsStringSync())
+    List<dynamic> persisted() =>
+        jsonDecode(secure.values['private_metadata_containers_v1']!)
             as List<dynamic>;
 
     test('only switches off caching for the listed vaults', () async {
@@ -129,7 +158,7 @@ void main() {
         record('content://b', cache: true),
         record('content://c', cache: false),
       ]);
-      final repo = ContainerRepository.withCryptoApi(_FakeCryptoApi());
+      final repo = ContainerRepository.withCryptoApi(_FakeCryptoApi(), secure);
 
       final changed = await repo.disableDerivedKeyCachingFor([
         'content://a',
@@ -143,11 +172,11 @@ void main() {
       expect(records['usb:/dev/bus/usb/001/002']!.cacheDerivedKey, isFalse);
       expect(records['content://b']!.cacheDerivedKey, isTrue);
 
-      final persisted = {
-        for (final r in onDisk().cast<Map<String, dynamic>>())
+      final saved = {
+        for (final r in persisted().cast<Map<String, dynamic>>())
           r['uri'] as String: r['cacheDerivedKey'] as bool,
       };
-      expect(persisted, {
+      expect(saved, {
         'content://a': false,
         'usb:/dev/bus/usb/001/002': false,
         'content://b': true,
@@ -157,7 +186,7 @@ void main() {
 
     test('a second call has nothing left to change', () async {
       seed([record('content://a', cache: true)]);
-      final repo = ContainerRepository.withCryptoApi(_FakeCryptoApi());
+      final repo = ContainerRepository.withCryptoApi(_FakeCryptoApi(), secure);
 
       expect(await repo.disableDerivedKeyCachingFor(['content://a']), 1);
       expect(await repo.disableDerivedKeyCachingFor(['content://a']), 0);

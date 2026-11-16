@@ -1,5 +1,7 @@
 package com.aeidolon.vaultexplorer.handlers
 
+import com.aeidolon.vaultexplorer.ProviderAuthorities
+
 import android.provider.DocumentsContract
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -16,7 +18,7 @@ import com.aeidolon.vaultexplorer.MainActivity
 class FolderDocumentProviderHandlers(private val activity: MainActivity) {
 
     companion object {
-        private const val AUTHORITY = "com.aeidolon.vaultexplorer.documents"
+        private val AUTHORITY = ProviderAuthorities.DOCUMENTS
     }
 
     private fun notifyRootsChanged() {

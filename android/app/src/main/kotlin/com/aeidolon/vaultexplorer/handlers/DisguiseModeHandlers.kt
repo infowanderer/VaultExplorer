@@ -1,5 +1,7 @@
 package com.aeidolon.vaultexplorer.handlers
 
+import com.aeidolon.vaultexplorer.ProviderAuthorities
+
 import android.app.ActivityManager
 import android.content.ComponentName
 import android.content.Context
@@ -83,7 +85,7 @@ class DisguiseModeHandlers(
     private fun notifyRootsChanged() {
         try {
             activity.contentResolver.notifyChange(
-                DocumentsContract.buildRootsUri("com.aeidolon.vaultexplorer.documents"),
+                DocumentsContract.buildRootsUri(ProviderAuthorities.DOCUMENTS),
                 null,
             )
         } catch (e: Exception) {

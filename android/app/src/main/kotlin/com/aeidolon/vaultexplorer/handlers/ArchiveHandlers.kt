@@ -67,6 +67,11 @@ class ArchiveHandlers(
      * are both securely wiped on their respective cleanup paths.
      */
     fun handleArchiveStageBrowseEntry(call: MethodCall, result: MethodChannel.Result) {
+        if (!com.aeidolon.vaultexplorer.privacy.PlaintextScratch.allowed) {
+            result.error("PRIVACY_BLOCKED", com.aeidolon.vaultexplorer.privacy.PlaintextScratch.MESSAGE, null)
+            return
+        }
+
         val filePath = call.argument<String>("filePath") ?: call.argument<String>("localUri")
         val vaultPath = call.argument<String>("vaultPath")
         val targetIndex = call.argument<Number>("targetIndex")?.toInt() ?: -1
@@ -88,7 +93,7 @@ class ArchiveHandlers(
                     val volId = ContainerSessionRegistry.getVolumeIdByUri(filePath)
                     when {
                         volId != null -> {
-                            val temp = File.createTempFile(
+                            val temp = com.aeidolon.vaultexplorer.privacy.PlaintextScratch.tempFile(
                                 "archive_browse_source_",
                                 ".tmp",
                                 activity.cacheDir,
@@ -134,7 +139,7 @@ class ArchiveHandlers(
                     .replace(Regex("[^A-Za-z0-9._ -]"), "_")
                     .takeLast(80)
                     .ifEmpty { "archive_entry.bin" }
-                val stagedPreviewFile = File.createTempFile(
+                val stagedPreviewFile = com.aeidolon.vaultexplorer.privacy.PlaintextScratch.tempFile(
                     "archive_browse_",
                     "_$safeName",
                     activity.cacheDir,
@@ -194,6 +199,11 @@ class ArchiveHandlers(
     }
 
     fun handleArchiveScanVault(call: MethodCall, result: MethodChannel.Result) {
+        if (!com.aeidolon.vaultexplorer.privacy.PlaintextScratch.allowed) {
+            result.error("PRIVACY_BLOCKED", com.aeidolon.vaultexplorer.privacy.PlaintextScratch.MESSAGE, null)
+            return
+        }
+
         val uriString = call.argument<String>("filePath")
         val vaultPath = call.argument<String>("vaultPath")
         val passphrase = call.argument<String>("passphrase")
@@ -263,7 +273,7 @@ class ArchiveHandlers(
 
         ioExecutor.execute {
             if (isFolderVault) {
-                val tempFile = File.createTempFile("arch_scan_", ".tmp", activity.cacheDir)
+                val tempFile = com.aeidolon.vaultexplorer.privacy.PlaintextScratch.tempFile("arch_scan_", ".tmp", activity.cacheDir)
                 var pfd: ParcelFileDescriptor? = null
                 try {
                     val extracted = ContainerFileSystem.extractToFile(volId, vaultPath, tempFile.absolutePath)
@@ -333,6 +343,11 @@ class ArchiveHandlers(
     }
 
     fun handleArchiveExtractVaultEntry(call: MethodCall, result: MethodChannel.Result) {
+        if (!com.aeidolon.vaultexplorer.privacy.PlaintextScratch.allowed) {
+            result.error("PRIVACY_BLOCKED", com.aeidolon.vaultexplorer.privacy.PlaintextScratch.MESSAGE, null)
+            return
+        }
+
         val uriString = call.argument<String>("filePath")
         val vaultPath = call.argument<String>("vaultPath")
         val targetIndex = call.argument<Number>("targetIndex")?.toInt() ?: -1
@@ -400,7 +415,7 @@ class ArchiveHandlers(
 
         ioExecutor.execute {
             if (isFolderVault) {
-                val tempFile = File.createTempFile("arch_ext_entry_", ".tmp", activity.cacheDir)
+                val tempFile = com.aeidolon.vaultexplorer.privacy.PlaintextScratch.tempFile("arch_ext_entry_", ".tmp", activity.cacheDir)
                 var pfd: ParcelFileDescriptor? = null
                 try {
                     val extracted = ContainerFileSystem.extractToFile(volId, vaultPath, tempFile.absolutePath)
@@ -433,6 +448,11 @@ class ArchiveHandlers(
     }
 
     fun handleArchiveExtractVaultAll(call: MethodCall, result: MethodChannel.Result) {
+        if (!com.aeidolon.vaultexplorer.privacy.PlaintextScratch.allowed) {
+            result.error("PRIVACY_BLOCKED", com.aeidolon.vaultexplorer.privacy.PlaintextScratch.MESSAGE, null)
+            return
+        }
+
         val filePath = call.argument<String>("filePath") ?: call.argument<String>("localUri")
         val vaultPath = call.argument<String>("vaultPath")
         val destUri = call.argument<String>("destUri") ?: filePath
@@ -459,7 +479,7 @@ class ArchiveHandlers(
                 var pfd: ParcelFileDescriptor? = null
                 try {
                     if (srcVolId != null && !vaultPath.isNullOrEmpty()) {
-                        val temp = File.createTempFile("arch_bulk_src_", ".tmp", activity.cacheDir)
+                        val temp = com.aeidolon.vaultexplorer.privacy.PlaintextScratch.tempFile("arch_bulk_src_", ".tmp", activity.cacheDir)
                         tempArchiveFile = temp
                         val ok = ContainerFileSystem.extractToFile(srcVolId, vaultPath, temp.absolutePath, opId)
                         if (!ok || !temp.exists()) {
@@ -545,7 +565,7 @@ class ArchiveHandlers(
             var pfd: ParcelFileDescriptor? = null
             try {
                 if (!vaultPath.isNullOrEmpty()) {
-                    val temp = File.createTempFile("arch_bulk_src_", ".tmp", activity.cacheDir)
+                    val temp = com.aeidolon.vaultexplorer.privacy.PlaintextScratch.tempFile("arch_bulk_src_", ".tmp", activity.cacheDir)
                     tempArchiveFile = temp
                     val ok = ContainerFileSystem.extractToFile(srcVolId!!, vaultPath, temp.absolutePath, opId)
                     if (!ok || !temp.exists()) {
@@ -577,7 +597,7 @@ class ArchiveHandlers(
                         else result.error("EXTRACT_FAILED", "Failed to bulk extract archive", null)
                     }
                 } else {
-                    val extDir = File(activity.cacheDir, "arch_bulk_ext_${System.nanoTime()}").apply { mkdirs() }
+                    val extDir = com.aeidolon.vaultexplorer.privacy.PlaintextScratch.file(activity.cacheDir, "arch_bulk_ext_${System.nanoTime()}").apply { mkdirs() }
                     tempExtractDir = extDir
                     val extractResult = NativeEngine.archiveExtractFdToLocalDirNative(
                         pfd.fd, extDir.absolutePath, subPath, passphrase, opId
@@ -643,6 +663,11 @@ class ArchiveHandlers(
     }
 
     fun handleArchiveScanLocal(call: MethodCall, result: MethodChannel.Result) {
+        if (!com.aeidolon.vaultexplorer.privacy.PlaintextScratch.allowed) {
+            result.error("PRIVACY_BLOCKED", com.aeidolon.vaultexplorer.privacy.PlaintextScratch.MESSAGE, null)
+            return
+        }
+
         val pathOrUri = call.argument<String>("filePath") ?: call.argument<String>("localUri")
         val passphrase = call.argument<String>("passphrase")
 
@@ -682,6 +707,11 @@ class ArchiveHandlers(
     }
 
     fun handleArchiveExtractLocalEntry(call: MethodCall, result: MethodChannel.Result) {
+        if (!com.aeidolon.vaultexplorer.privacy.PlaintextScratch.allowed) {
+            result.error("PRIVACY_BLOCKED", com.aeidolon.vaultexplorer.privacy.PlaintextScratch.MESSAGE, null)
+            return
+        }
+
         val pathOrUri = call.argument<String>("filePath") ?: call.argument<String>("localUri")
         val targetIndex = call.argument<Number>("targetIndex")?.toInt() ?: -1
         val passphrase = call.argument<String>("passphrase")
@@ -738,6 +768,11 @@ class ArchiveHandlers(
     }
 
     fun handleArchiveCreate(call: MethodCall, result: MethodChannel.Result) {
+        if (!com.aeidolon.vaultexplorer.privacy.PlaintextScratch.allowed) {
+            result.error("PRIVACY_BLOCKED", com.aeidolon.vaultexplorer.privacy.PlaintextScratch.MESSAGE, null)
+            return
+        }
+
         pointNativeTempDirAtCache()
         val format = call.argument<Number>("format")?.toInt() ?: 0
         val passphrase = call.argument<String>("passphrase")
@@ -811,7 +846,7 @@ class ArchiveHandlers(
                 var destPfd: ParcelFileDescriptor? = null
                 try {
                     val localSrcPaths = if (srcIsSaf) {
-                        val dir = File(activity.cacheDir, "arch_src_${System.nanoTime()}").apply { mkdirs() }
+                        val dir = com.aeidolon.vaultexplorer.privacy.PlaintextScratch.file(activity.cacheDir, "arch_src_${System.nanoTime()}").apply { mkdirs() }
                         tempSrcDir = dir
                         stageSafArchiveSources(srcUri!!, srcPaths, entryNames, dir)
                     } else {
@@ -832,7 +867,7 @@ class ArchiveHandlers(
                                 }
                                 return@execute
                             }
-                            val temp = File(activity.cacheDir, "arch_out_${System.nanoTime()}.tmp")
+                            val temp = com.aeidolon.vaultexplorer.privacy.PlaintextScratch.file(activity.cacheDir, "arch_out_${System.nanoTime()}.tmp")
                             tempArchiveFile = temp
                             temp.absolutePath
                         } else {
@@ -882,7 +917,7 @@ class ArchiveHandlers(
                                 }
                                 return@execute
                             }
-                            val temp = File(activity.cacheDir, "arch_out_${System.nanoTime()}.tmp")
+                            val temp = com.aeidolon.vaultexplorer.privacy.PlaintextScratch.file(activity.cacheDir, "arch_out_${System.nanoTime()}.tmp")
                             tempArchiveFile = temp
                             temp.absolutePath
                         } else {
@@ -951,7 +986,7 @@ class ArchiveHandlers(
                 val localModifiedSecs: LongArray
 
                 if (srcIsFolderVault) {
-                    val dir = File(activity.cacheDir, "arch_src_${System.nanoTime()}").apply { mkdirs() }
+                    val dir = com.aeidolon.vaultexplorer.privacy.PlaintextScratch.file(activity.cacheDir, "arch_src_${System.nanoTime()}").apply { mkdirs() }
                     tempSrcDir = dir
                     val files = mutableListOf<String>()
                     val names = mutableListOf<String>()
@@ -977,7 +1012,7 @@ class ArchiveHandlers(
                     localEntryNames = names
                     localModifiedSecs = modified.toLongArray()
                 } else if (srcIsSaf) {
-                    val dir = File(activity.cacheDir, "arch_src_${System.nanoTime()}").apply { mkdirs() }
+                    val dir = com.aeidolon.vaultexplorer.privacy.PlaintextScratch.file(activity.cacheDir, "arch_src_${System.nanoTime()}").apply { mkdirs() }
                     tempSrcDir = dir
                     localSourcePaths = stageSafArchiveSources(srcUri!!, srcPaths, entryNames, dir)
                     localEntryNames = entryNames
@@ -998,7 +1033,7 @@ class ArchiveHandlers(
                         activity.runOnUiThread { result.error("INVALID_ARGS", "Destination storage URI required", null) }
                         return@execute
                     }
-                    val arch = File(activity.cacheDir, "arch_out_${System.nanoTime()}.tmp")
+                    val arch = com.aeidolon.vaultexplorer.privacy.PlaintextScratch.file(activity.cacheDir, "arch_out_${System.nanoTime()}.tmp")
                     tempArchiveFile = arch
                     targetPfd = ParcelFileDescriptor.open(
                         arch,
@@ -1100,7 +1135,7 @@ class ArchiveHandlers(
                 var nativeNames: List<String> = entryNames
                 var nativeModified: LongArray = sourceModifiedSecs
                 if (srcIsFolderVault) {
-                    val dir = File(activity.cacheDir, "arch_src_${System.nanoTime()}").apply { mkdirs() }
+                    val dir = com.aeidolon.vaultexplorer.privacy.PlaintextScratch.file(activity.cacheDir, "arch_src_${System.nanoTime()}").apply { mkdirs() }
                     tempSrcDir = dir
                     val files = mutableListOf<String>()
                     val names = mutableListOf<String>()
@@ -1126,7 +1161,7 @@ class ArchiveHandlers(
                     nativeNames = names
                     nativeModified = modified.toLongArray()
                 } else if (srcIsSaf) {
-                    val dir = File(activity.cacheDir, "arch_src_${System.nanoTime()}").apply { mkdirs() }
+                    val dir = com.aeidolon.vaultexplorer.privacy.PlaintextScratch.file(activity.cacheDir, "arch_src_${System.nanoTime()}").apply { mkdirs() }
                     tempSrcDir = dir
                     nativeSrcVol = -1
                     nativeSrcPaths = stageSafArchiveSources(srcUri!!, srcPaths, entryNames, dir)
@@ -1141,11 +1176,11 @@ class ArchiveHandlers(
                         activity.runOnUiThread { result.error("INVALID_ARGS", "Destination storage URI required", null) }
                         return@execute
                     }
-                    val dir = File(activity.cacheDir, "arch_out_${System.nanoTime()}").apply { mkdirs() }
+                    val dir = com.aeidolon.vaultexplorer.privacy.PlaintextScratch.file(activity.cacheDir, "arch_out_${System.nanoTime()}").apply { mkdirs() }
                     tempOutDir = dir
                     archivePath = File(dir, File(destVaultPath).name).absolutePath
                 } else if (intoVault && destIsFolderVault) {
-                    val dir = File(activity.cacheDir, "arch_out_${System.nanoTime()}").apply { mkdirs() }
+                    val dir = com.aeidolon.vaultexplorer.privacy.PlaintextScratch.file(activity.cacheDir, "arch_out_${System.nanoTime()}").apply { mkdirs() }
                     tempOutDir = dir
                     archivePath = File(dir, File(destVaultPath!!).name).absolutePath
                 } else if (intoVault) {

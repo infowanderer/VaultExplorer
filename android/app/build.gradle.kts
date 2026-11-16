@@ -1,3 +1,4 @@
+import java.util.Base64
 import java.util.Properties
 
 val keystorePropertiesFile = rootProject.file("key.properties")
@@ -19,6 +20,18 @@ tasks.whenTaskAdded {
 
 tasks.matching { it.name == "packageDebugUnitTestForUnitTest" }.configureEach {
     mustRunAfter("copyFlutterAssetsDebug")
+}
+
+// The same Dart define selects both Android and Dart provider identities.
+val previewDefines = providers.gradleProperty("dart-defines").orNull
+    ?.split(",")?.filter { it.isNotBlank() }
+    ?.map { String(Base64.getDecoder().decode(it), Charsets.UTF_8) }
+    ?.filter { it.startsWith("VAULTEXPLORER_PREVIEW=") }.orEmpty()
+require(previewDefines.size <= 1) { "Duplicate VAULTEXPLORER_PREVIEW define" }
+val mediaPreview = when (previewDefines.singleOrNull()?.substringAfter("=")) {
+    null, "false" -> false
+    "true" -> true
+    else -> error("VAULTEXPLORER_PREVIEW must be true or false")
 }
 
 val ndkVersionPin = "28.2.13676358"
@@ -44,6 +57,10 @@ android {
         }
     }
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
@@ -57,7 +74,9 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.aeidolon.vaultexplorer"
+        applicationId = if (mediaPreview) "com.aeidolon.vaultexplorer.preview" else "com.aeidolon.vaultexplorer"
+        manifestPlaceholders["vaultAppLabel"] = if (mediaPreview) "Media Organizer Preview" else "@string/app_name"
+        manifestPlaceholders["vaultAutomationEnabled"] = (!mediaPreview).toString()
         minSdk = 26
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -65,6 +84,7 @@ android {
 
         externalNativeBuild {
             cmake {
+                targets.add("vaultexplorer")
                 arguments(
                     "-DCMAKE_BUILD_TYPE=Release",
                     "-DCMAKE_SHARED_LINKER_FLAGS=-Wl,-z,max-page-size=16384 -Wl,--build-id=none,--hash-style=gnu",

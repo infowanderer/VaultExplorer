@@ -631,3 +631,20 @@ Java_com_aeidolon_vaultexplorer_NativeEngine_closeStream(
 
     JNI_CATCH_VOID
 }
+#include "organizer/no_replace.h"
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_aeidolon_vaultexplorer_NativeEngine_organizerRenameNoReplace(
+        JNIEnv* env, jclass, jbyteArray source, jbyteArray destination) {
+    try {
+        if (!source || !destination) return JNI_FALSE;
+        const auto sourceSize = env->GetArrayLength(source);
+        const auto destinationSize = env->GetArrayLength(destination);
+        if (sourceSize < 1 || sourceSize > 4095 || destinationSize < 1 || destinationSize > 4095) return JNI_FALSE;
+        std::string from(sourceSize, '\0'), to(destinationSize, '\0');
+        env->GetByteArrayRegion(source, 0, sourceSize, reinterpret_cast<jbyte*>(from.data()));
+        env->GetByteArrayRegion(destination, 0, destinationSize, reinterpret_cast<jbyte*>(to.data()));
+        if (env->ExceptionCheck() || from.find('\0') != std::string::npos || to.find('\0') != std::string::npos) return JNI_FALSE;
+        return organizer::renameNoReplace(from.c_str(), to.c_str()) ? JNI_TRUE : JNI_FALSE;
+    } catch (...) { return JNI_FALSE; }
+}

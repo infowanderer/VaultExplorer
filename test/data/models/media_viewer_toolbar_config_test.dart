@@ -3,6 +3,39 @@ import 'package:vaultexplorer/data/models/media_viewer_action.dart';
 import 'package:vaultexplorer/data/models/media_viewer_toolbar_config.dart';
 
 void main() {
+  group('keyboard and wheel seek settings', () {
+    test('old configurations retain independent defaults', () {
+      final config = MediaViewerToolbarConfig.fromJson({});
+      expect(config.keyboardWheelSeekSeconds, 5);
+      expect(config.keyboardWheelCtrlSeekSeconds, 30);
+    });
+    test('copy and encrypted-blob serialization preserve both values', () {
+      final config = const MediaViewerToolbarConfig().copyWith(
+        keyboardWheelSeekSeconds: 7,
+        keyboardWheelCtrlSeekSeconds: 42,
+      );
+      final restored = MediaViewerToolbarConfig.fromJson(config.toJson());
+      expect(restored.keyboardWheelSeekSeconds, 7);
+      expect(restored.keyboardWheelCtrlSeekSeconds, 42);
+      expect(restored.doubleTapSkipSeconds, 5);
+    });
+    test('untrusted settings clamp or fall back without throwing', () {
+      final config = MediaViewerToolbarConfig.fromJson({
+        'keyboardWheelSeekSeconds': -10,
+        'keyboardWheelCtrlSeekSeconds': 99999,
+      });
+      expect(config.keyboardWheelSeekSeconds, 1);
+      expect(config.keyboardWheelCtrlSeekSeconds, 600);
+      final invalid = MediaViewerToolbarConfig.fromJson({
+        'keyboardWheelSeekSeconds': double.nan,
+        'keyboardWheelCtrlSeekSeconds': 'bad',
+      });
+      expect(invalid.keyboardWheelSeekSeconds, 5);
+      expect(invalid.keyboardWheelCtrlSeekSeconds, 30);
+    });
+  });
+
+
   group('MediaViewerToolbarConfig swipeToSeekEnabled', () {
     test('defaults to false in defaults() factory', () {
       final config = MediaViewerToolbarConfig.defaults();
