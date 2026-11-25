@@ -139,11 +139,13 @@ void main() {
     test('unrelated files in the folder are neither read nor deleted', () async {
       final files = _Files()
         ..files['marks.json'] = _b('marks')
+        ..files['gallery_meta.1.json'] = _b('private note')
         ..files['gallery_meta.json.bak'] = _b('bak');
       final storage = GalleryMetaLogStorage((_) => files);
       await storage.appendSegment(1, 'a');
       expect(await storage.loadSegments(1), ['a']);
       await storage.replaceSegments(1, 'm');
+      expect(utf8.decode(files.files['gallery_meta.1.json']!), 'private note');
       expect(files.files.containsKey('marks.json'), isTrue);
       expect(files.files.containsKey('gallery_meta.json.bak'), isTrue);
     });

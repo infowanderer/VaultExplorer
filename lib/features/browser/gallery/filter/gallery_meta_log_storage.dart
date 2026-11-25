@@ -37,7 +37,7 @@ abstract final class GalleryMetaSegmentNames {
     final n = int.tryParse(
       name.substring(_prefix.length, name.length - _suffix.length),
     );
-    return n != null && n > 0 ? n : null;
+    return n != null && n > 0 && nameOf(n) == name ? n : null;
   }
 
   static String nameOf(int seq) => seq == 0
