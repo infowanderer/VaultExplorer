@@ -1,3 +1,4 @@
+import 'package:vaultexplorer/core/config/application_identity.dart';
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -43,6 +44,14 @@ Future<void> showMetadataEditMenu(
   void Function(List<MetadataEditTarget> changed)? onChanged,
 }) async {
   if (targets.isEmpty) return;
+  if (ApplicationIdentity.isPreview) {
+    showAppSnackBar(
+      context,
+      message: 'Embedded metadata editing is unavailable until recoverable saves are supported. Use organizer Tags and ratings to keep originals unchanged.',
+      tone: AppBannerTone.warning,
+    );
+    return;
+  }
   if (targets.every((t) => t.container.readOnly)) {
     showAppSnackBar(context, message: context.l10n.metadataReadOnlyMessage, tone: AppBannerTone.warning);
     return;

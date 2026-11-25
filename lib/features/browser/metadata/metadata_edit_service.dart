@@ -1,3 +1,4 @@
+import 'package:vaultexplorer/core/config/application_identity.dart';
 import 'dart:typed_data';
 
 import 'package:vaultexplorer/core/api/vault_file_io_api.dart';
@@ -84,6 +85,10 @@ class MetadataEditService {
     int? keepModifiedSecs,
     int? newModifiedSecs,
   }) async {
+    // Preview edits must preserve originals through the organizer journal.
+    if (ApplicationIdentity.isPreview) {
+      return const MetadataEditOutcome(MetadataEditStatus.readOnly);
+    }
     if (container.readOnly) return const MetadataEditOutcome(MetadataEditStatus.readOnly);
     if (!ImageMetadataEditor.canEdit(path)) {
       return const MetadataEditOutcome(MetadataEditStatus.unsupported);
@@ -113,7 +118,7 @@ class MetadataEditService {
   /// Sets only the modified time, for files whose embedded dates cannot be
   /// edited (videos, HEIC, GIF).
   Future<bool> setModifiedTime(MountedContainer container, String path, int epochSecs) {
-    if (container.readOnly) return Future.value(false);
+    if (ApplicationIdentity.isPreview || container.readOnly) return Future.value(false);
     return _api.setLastModifiedTime(container, path, epochSecs);
   }
 }
